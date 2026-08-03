@@ -378,13 +378,13 @@ function IconChevronRight() {
   );
 }
 
-function SettingsBackButton({ onBack }) {
+function SettingsBackButton({ onBack, label = "Einstellungen" }) {
   return (
     <button className="settings-back" onClick={onBack}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M15 6l-6 6 6 6" />
       </svg>
-      Einstellungen
+      {label}
     </button>
   );
 }
@@ -951,6 +951,8 @@ function ProfileSection({ user, profileHook }) {
   const { profile, privateData, saveProfile, saveFullName, uploadAvatar } = profileHook;
   const [username, setUsername] = useState("");
   const [gender, setGender] = useState("");
+  const [bio, setBio] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -960,6 +962,8 @@ function ProfileSection({ user, profileHook }) {
   useEffect(() => {
     setUsername(profile?.username || "");
     setGender(profile?.gender || "");
+    setBio(profile?.bio || "");
+    setInstagram(profile?.instagram || "");
   }, [profile]);
 
   useEffect(() => {
@@ -976,7 +980,12 @@ function ProfileSection({ user, profileHook }) {
       return;
     }
     setBusy(true);
-    const err1 = await saveProfile({ username: uname, gender: gender || null });
+    const err1 = await saveProfile({
+      username: uname,
+      gender: gender || null,
+      bio: bio.trim() || null,
+      instagram: instagram.trim().replace(/^@/, "") || null,
+    });
     const err2 = err1 ? null : await saveFullName(fullName.trim() || null);
     setBusy(false);
     if (err1) setError(err1);
@@ -1070,6 +1079,30 @@ function ProfileSection({ user, profileHook }) {
             </button>
           </div>
         </div>
+        <div className="field">
+          <div className="field-label">
+            <span>Bio (öffentlich, in der Rangliste sichtbar)</span>
+          </div>
+          <textarea
+            className="text-input"
+            rows={3}
+            maxLength={200}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Kurz was über dich..."
+          />
+        </div>
+        <div className="field">
+          <div className="field-label">
+            <span>Instagram (öffentlich, optional)</span>
+          </div>
+          <input
+            className="text-input"
+            value={instagram}
+            onChange={(e) => setInstagram(e.target.value)}
+            placeholder="dein_username"
+          />
+        </div>
         {error && <div className="field-hint account-error">{error}</div>}
         {info && <div className="field-hint">{info}</div>}
         <button className="main-btn start" type="submit" disabled={busy} style={{ marginTop: 14 }}>
@@ -1082,20 +1115,8 @@ function ProfileSection({ user, profileHook }) {
 
 const BADGE_MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-function BadgesRow({ user }) {
-  const [badges, setBadges] = useState(null);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .rpc("my_badges", { p_user_id: user.id })
-      .then(({ data, error }) => {
-        if (!error) setBadges(data || []);
-      });
-  }, [user]);
-
+function BadgeChips({ badges }) {
   if (!badges || badges.length === 0) return null;
-
   return (
     <div className="badges-row">
       {badges.map((b, i) => {
@@ -1114,6 +1135,21 @@ function BadgesRow({ user }) {
       })}
     </div>
   );
+}
+
+function BadgesRow({ user }) {
+  const [badges, setBadges] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .rpc("my_badges", { p_user_id: user.id })
+      .then(({ data, error }) => {
+        if (!error) setBadges(data || []);
+      });
+  }, [user]);
+
+  return <BadgeChips badges={badges} />;
 }
 
 function IconGoogle() {
@@ -1299,11 +1335,13 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
   const runs = useMemo(() => itemized.slice().reverse(), [itemized]);
 
   const stats = useMemo(() => {
+    const withDraw = runs.filter((r) => r.drawMs != null);
     const withFirstShot = runs.filter((r) => r.firstShotMs != null);
     const withDrawToShot = runs.filter((r) => r.drawToShotMs != null);
     const avg = (list, key) => (list.length ? list.reduce((sum, r) => sum + r[key], 0) / list.length : null);
     return {
       count: runs.length,
+      avgDraw: avg(withDraw, "drawMs"),
       avgFirstShot: avg(withFirstShot, "firstShotMs"),
       avgDrawToShot: avg(withDrawToShot, "drawToShotMs"),
     };
@@ -1328,7 +1366,10 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
   return (
     <>
       <div className="panel">
-        <h2>Auswertung</h2>
+        <div className="panel-header-row">
+          <h2>Auswertung</h2>
+          {!loading && stats.count > 0 && <span className="dash-count">{stats.count} Läufe</span>}
+        </div>
         {!auth.user && (
           <div className="field-hint" style={{ marginBottom: 12 }}>
             Nicht angemeldet - zeigt den lokalen Verlauf auf diesem Gerät.{" "}
@@ -1344,24 +1385,23 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
           <span className="field-hint">Noch keine auswertbaren Läufe (Draw + erster Schuss nötig).</span>
         ) : (
           !loading && (
-            <div className="dash-stats">
-              <div className="dash-stat">
-                <span className="dash-stat-label">Ø Draw → 1. Schuss</span>
-                <span className="dash-stat-val">
-                  {stats.avgDrawToShot != null ? fmt(stats.avgDrawToShot) : "–"}
-                </span>
+            <>
+              <div className="dash-stats">
+                <div className="dash-stat">
+                  <span className="dash-stat-label">Ø Zug</span>
+                  <span className="dash-stat-val">{stats.avgDraw != null ? fmt(stats.avgDraw) : "–"}</span>
+                </div>
+                <div className="dash-stat">
+                  <span className="dash-stat-label">Ø 1. Schuss</span>
+                  <span className="dash-stat-val">
+                    {stats.avgFirstShot != null ? fmt(stats.avgFirstShot) : "–"}
+                  </span>
+                </div>
               </div>
-              <div className="dash-stat">
-                <span className="dash-stat-label">Ø 1. Schuss (ab Beep)</span>
-                <span className="dash-stat-val">
-                  {stats.avgFirstShot != null ? fmt(stats.avgFirstShot) : "–"}
-                </span>
-              </div>
-              <div className="dash-stat">
-                <span className="dash-stat-label">Läufe</span>
-                <span className="dash-stat-val">{stats.count}</span>
-              </div>
-            </div>
+              {stats.avgDrawToShot != null && (
+                <div className="dash-delta">Ø Zug → Schuss: {fmt(stats.avgDrawToShot)}s</div>
+              )}
+            </>
           )
         )}
       </div>
@@ -1449,6 +1489,7 @@ function LeaderboardPanel({ auth, onAccount }) {
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [viewingUserId, setViewingUserId] = useState(null);
 
   useEffect(() => {
     if (!auth.user) {
@@ -1490,6 +1531,10 @@ function LeaderboardPanel({ auth, onAccount }) {
     );
   }
 
+  if (viewingUserId) {
+    return <PublicProfilePanel userId={viewingUserId} onBack={() => setViewingUserId(null)} />;
+  }
+
   return (
     <div className="panel">
       <h2>Rangliste</h2>
@@ -1521,9 +1566,10 @@ function LeaderboardPanel({ auth, onAccount }) {
       {!loading && rows && rows.length > 0 && (
         <div className="leaderboard-list">
           {rows.map((r, i) => (
-            <div
+            <button
               className={`leaderboard-row ${r.user_id === auth.user.id ? "is-me" : ""}`}
               key={r.user_id}
+              onClick={() => setViewingUserId(r.user_id)}
             >
               <span className="lb-rank">{i + 1}</span>
               <div className="lb-avatar">
@@ -1539,16 +1585,99 @@ function LeaderboardPanel({ auth, onAccount }) {
                   <GenderBadge gender={r.gender} />
                 </span>
                 {r.gear_name && <span className="lb-gear">{r.gear_name}</span>}
+                <span className="lb-time-line">
+                  {r.draw_ms != null ? (
+                    <>
+                      Zug {fmt(r.draw_ms)}s → Schuss {fmt(r.first_shot_ms)}s
+                      {r.draw_to_shot_ms != null && (
+                        <span className="lb-time-delta"> (Δ {fmt(r.draw_to_shot_ms)}s)</span>
+                      )}
+                    </>
+                  ) : (
+                    `1. Schuss ${fmt(r.first_shot_ms)}s`
+                  )}
+                </span>
               </div>
-              <div className="lb-times">
-                <span className="lb-time-main">{fmt(r.draw_to_shot_ms)}s</span>
-                <span className="lb-time-sub">1. Schuss {fmt(r.first_shot_ms)}s</span>
-              </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function PublicProfilePanel({ userId, onBack }) {
+  const [profile, setProfile] = useState(null);
+  const [badges, setBadges] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setNotFound(false);
+    Promise.all([
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      supabase.rpc("my_badges", { p_user_id: userId }),
+    ]).then(([{ data: p }, { data: b }]) => {
+      if (!active) return;
+      setProfile(p || null);
+      setNotFound(!p);
+      setBadges(b || []);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const instaHandle = profile?.instagram ? profile.instagram.replace(/^@/, "").trim() : null;
+
+  return (
+    <>
+      <SettingsBackButton onBack={onBack} label="Rangliste" />
+      <div className="panel">
+        {loading ? (
+          <span className="field-hint">Lädt...</span>
+        ) : notFound ? (
+          <span className="field-hint">Profil nicht gefunden.</span>
+        ) : (
+          <>
+            <div className="avatar-row">
+              <div className="avatar-preview">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" />
+                ) : (
+                  <span className="avatar-placeholder">{(profile.username || "?")[0].toUpperCase()}</span>
+                )}
+              </div>
+              <div>
+                <div className="pub-username">
+                  {profile.username}
+                  <GenderBadge gender={profile.gender} />
+                </div>
+                {profile.active_gear_name && <div className="pub-gear">{profile.active_gear_name}</div>}
+              </div>
+            </div>
+
+            {profile.bio && <p className="pub-bio">{profile.bio}</p>}
+
+            {instaHandle && (
+              <a
+                className="inline-link"
+                href={`https://instagram.com/${instaHandle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                @{instaHandle} auf Instagram
+              </a>
+            )}
+
+            <BadgeChips badges={badges} />
+          </>
+        )}
+      </div>
+    </>
   );
 }
 

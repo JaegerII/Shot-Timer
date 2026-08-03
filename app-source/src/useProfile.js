@@ -38,14 +38,19 @@ export function useProfile(user) {
     return msg;
   };
 
-  // username + gender are saved together (and always include username) so an
-  // upsert never trips the "username not null" constraint on first insert.
+  // username + gender + bio + instagram are saved together (and always
+  // include username) so an upsert never trips the "username not null"
+  // constraint on first insert.
   const saveProfile = useCallback(
-    async ({ username, gender }) => {
+    async ({ username, gender, bio, instagram }) => {
       if (!user) return "Nicht angemeldet.";
-      const { error } = await supabase
-        .from("profiles")
-        .upsert({ id: user.id, username, gender: gender || null });
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        username,
+        gender: gender || null,
+        bio: bio || null,
+        instagram: instagram || null,
+      });
       if (error) return friendlyError(error.message);
       await load();
       return null;
