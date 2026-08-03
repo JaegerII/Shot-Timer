@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
 // accidentally very long run doesn't grow the array forever.
 const MAX_BARS = 2000;
 const SAMPLE_INTERVAL_MS = 70;
-const REFRACTORY_MS = 180; // min gap between two detected events
+const REFRACTORY_MS = 180; // baseline min gap between two detected events
 const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audio thread
 
 // A real trigger/dry-fire click is dramatically louder than whatever else is
@@ -54,6 +54,19 @@ const ZCR_WINDOW_HALF = 150; // samples each side of the buffer's peak (~3.4ms @
 // still far shorter than any realistic draw-to-first-shot time, so a real
 // first shot is unaffected.
 const DRAW_SETTLE_MS = 450;
+
+// A single trigger press can itself produce two audible clicks very close
+// together - e.g. the striker/disconnector release, then the trigger itself
+// hitting its rear travel stop a moment later. Confirmed by testing: with no
+// draw motion and only one deliberate press, two events still landed ~190ms
+// apart. So after ANY registered event (draw or shot) we apply this settle
+// window before the next sound can register - shorter than DRAW_SETTLE_MS
+// since it only needs to cover one press's own mechanical follow-through,
+// not a whole cluster of draw-stroke noises. Trade-off: a genuinely
+// separate follow-up shot fired faster than this after the previous one
+// would also be swallowed - flag it if you ever do fast multiple shots and
+// notice one going missing.
+const SHOT_SETTLE_MS = 260;
 
 // The built-in phone mic (without autoGainControl, which we disable so the
 // sensitivity slider stays meaningful) reads noticeably quieter than a
@@ -232,7 +245,12 @@ export function useShotTimer({ onCommit } = {}) {
     const threshold = (6 + (100 - settingsRef.current.sensitivity) * 0.7) / 127; // 0-1 scale
     // The draw stroke itself can contain a short cluster of loud sub-sounds -
     // give it more room to settle than the gap we require between shots.
-    const refractoryMs = lastEventKindRef.current === "draw" ? DRAW_SETTLE_MS : REFRACTORY_MS;
+    const refractoryMs =
+      lastEventKindRef.current === "draw"
+        ? DRAW_SETTLE_MS
+        : lastEventKindRef.current === "shot"
+          ? SHOT_SETTLE_MS
+          : REFRACTORY_MS;
     const inRefractory = now - lastEventAtRef.current <= refractoryMs;
     // A real click must both clear the fixed floor AND stand out clearly
     // above whatever ambient/incidental noise level we've been seeing - this
