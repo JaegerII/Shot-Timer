@@ -32,6 +32,18 @@ const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audi
 const NOISE_FLOOR_ALPHA = 0.05;
 const PROMINENCE_MULTIPLIER = 2.2;
 
+// Analysis of real recordings (Holster-Zug / Abzug-Klick / Waffe-Repetieren)
+// showed the draw/holster sound is a duller, lower-frequency noise (zero-
+// crossing rate ~0.11-0.20 in a short window around its peak) while an
+// actual trigger click is a sharp, bright metallic snap (~0.20-0.40). So a
+// candidate event that would be classified as a "shot" (i.e. not the very
+// first/draw event) additionally has to clear this brightness bar - this
+// rejects duller draw-like or ambient noise from being mistaken for a shot.
+// Note: this can NOT tell an actual click apart from racking/chambering the
+// gun, since both are similarly bright metallic snaps acoustically.
+const ZCR_MIN_FOR_SHOT = 0.19;
+const ZCR_WINDOW_HALF = 150; // samples each side of the buffer's peak (~3.4ms @44.1kHz)
+
 // The built-in phone mic (without autoGainControl, which we disable so the
 // sensitivity slider stays meaningful) reads noticeably quieter than a
 // Bluetooth headset mic, which usually applies its own hardware-level AGC we
@@ -194,9 +206,13 @@ export function useShotTimer({ onCommit } = {}) {
 
     const input = event.inputBuffer.getChannelData(0);
     let peak = 0;
+    let peakIdx = 0;
     for (let i = 0; i < input.length; i++) {
       const v = Math.abs(input[i]);
-      if (v > peak) peak = v;
+      if (v > peak) {
+        peak = v;
+        peakIdx = i;
+      }
     }
 
     if (peak > maxPeakSinceSampleRef.current) maxPeakSinceSampleRef.current = peak;
@@ -209,12 +225,31 @@ export function useShotTimer({ onCommit } = {}) {
     // fixed threshold.
     const isProminent = peak > noiseFloorRef.current * PROMINENCE_MULTIPLIER;
 
-    if (peak > threshold && isProminent && !inRefractory) {
+    // A would-be shot (not the first/draw event) additionally has to sound
+    // sharp/metallic rather than dull/broadband - see ZCR_MIN_FOR_SHOT above.
+    // Only computed when it might matter, to keep this cheap on quiet buffers.
+    const isFirstEvent = eventCountRef.current === 0;
+    const wouldBeDraw = isFirstEvent && settingsRef.current.drawDetection;
+    let isBrightEnough = true;
+    if (peak > threshold && !wouldBeDraw) {
+      const lo = Math.max(0, peakIdx - ZCR_WINDOW_HALF);
+      const hi = Math.min(input.length - 1, peakIdx + ZCR_WINDOW_HALF);
+      let crossings = 0;
+      let prevPositive = input[lo] >= 0;
+      for (let i = lo + 1; i <= hi; i++) {
+        const positive = input[i] >= 0;
+        if (positive !== prevPositive) crossings++;
+        prevPositive = positive;
+      }
+      const zcr = crossings / Math.max(1, hi - lo);
+      isBrightEnough = zcr > ZCR_MIN_FOR_SHOT;
+    }
+
+    if (peak > threshold && isProminent && isBrightEnough && !inRefractory) {
       lastEventAtRef.current = now;
       const t = now - beepAtRef.current;
-      const isFirstEvent = eventCountRef.current === 0;
       eventCountRef.current += 1;
-      const kind = isFirstEvent && settingsRef.current.drawDetection ? "draw" : "shot";
+      const kind = wouldBeDraw ? "draw" : "shot";
       setShots((prev) => [...prev, { t, kind }]);
       eventKindSinceSampleRef.current = kind;
     } else if (!inRefractory) {
