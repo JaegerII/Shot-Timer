@@ -744,8 +744,8 @@ function PrivacySection() {
 
         <h2>Verantwortlicher &amp; Kontakt</h2>
         <p>
-          Anbieter dieser App: wemacon, Impressum unter Einstellungen → Über FORT Timer. Fragen zum
-          Datenschutz: <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
+          Anbieter dieser App: wemacon. Kontaktdaten und alle rechtlichen Angaben findest du im
+          Impressum unter Einstellungen → Über FORT Timer.
         </p>
       </div>
     </div>
