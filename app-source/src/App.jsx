@@ -4,7 +4,7 @@ import { useAuth } from "./useAuth";
 import { useProfile } from "./useProfile";
 import { supabase } from "./supabaseClient";
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -1216,7 +1216,7 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
     setError(null);
     supabase
       .from("training_runs")
-      .select("id, run_at, draw_ms, first_shot_ms, draw_to_shot_ms")
+      .select("id, run_at, draw_ms, first_shot_ms, draw_to_shot_ms, shot_count, gear_name")
       .order("run_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) setError(error.message);
@@ -1243,15 +1243,57 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
         drawMs: r.draw_ms,
         firstShotMs: r.first_shot_ms,
         drawToShotMs: r.draw_to_shot_ms,
+        shotCount: r.shot_count,
+        gearName: r.gear_name,
       }));
     }
     return localHistory
       .map((h) => {
         const s = runSummary(h.shots);
-        return { id: h.id, date: h.date, drawMs: s.drawMs, firstShotMs: s.firstShotMs, drawToShotMs: s.drawToShotMs };
+        return {
+          id: h.id,
+          date: h.date,
+          drawMs: s.drawMs,
+          firstShotMs: s.firstShotMs,
+          drawToShotMs: s.drawToShotMs,
+          shotCount: s.shotCount,
+          gearName: null, // gear tagging only exists for synced (signed-in) runs
+        };
       })
       .filter((r) => r.firstShotMs != null);
   }, [auth.user, remoteRuns, localHistory]);
+
+  // Downloads the itemized runs as a CSV file, oldest first like a log.
+  const exportCsv = () => {
+    const header = ["Datum", "Uhrzeit", "Draw (s)", "1. Schuss (s)", "Draw->Schuss (s)", "Schuesse", "Equipment"];
+    const rows = itemized
+      .slice()
+      .reverse()
+      .map((r) => {
+        const d = new Date(r.date);
+        return [
+          d.toLocaleDateString("de-DE"),
+          d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
+          r.drawMs != null ? (r.drawMs / 1000).toFixed(2) : "",
+          r.firstShotMs != null ? (r.firstShotMs / 1000).toFixed(2) : "",
+          r.drawToShotMs != null ? (r.drawToShotMs / 1000).toFixed(2) : "",
+          r.shotCount != null ? String(r.shotCount) : "",
+          r.gearName || "",
+        ];
+      });
+    const csv = [header, ...rows]
+      .map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fort-timer-verlauf-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Same data, oldest-first, for the stats/trend calculations below.
   const runs = useMemo(() => itemized.slice().reverse(), [itemized]);
@@ -1333,7 +1375,12 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
 
       {itemized.length > 0 && (
         <div className="panel">
-          <h2>Läufe</h2>
+          <div className="panel-header-row">
+            <h2>Läufe</h2>
+            <button className="sec-btn" onClick={exportCsv}>
+              Exportieren (CSV)
+            </button>
+          </div>
           <div className="field-hint" style={{ marginBottom: 10 }}>
             Ein Lauf durch Fremdgeräusche verfälscht? Hier kannst du ihn aus der Auswertung entfernen.
           </div>
