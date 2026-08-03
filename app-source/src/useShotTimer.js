@@ -44,29 +44,17 @@ const PROMINENCE_MULTIPLIER = 2.2;
 const ZCR_MIN_FOR_SHOT = 0.19;
 const ZCR_WINDOW_HALF = 150; // samples each side of the buffer's peak (~3.4ms @44.1kHz)
 
-// A holster draw is often not one single sound but a short cluster of them -
-// retention hood/strap release, the gun clearing leather, garment brushing
-// the mic, grip adjustment - all within a fraction of a second. With only
-// the normal 180ms refractory, each of those sub-sounds was getting counted
-// as its own event, so a draw with no trigger press yet could still produce
-// several bogus "shots". After the very first (draw) event we instead use
-// this longer settle window before the next sound is eligible to register -
-// still far shorter than any realistic draw-to-first-shot time, so a real
-// first shot is unaffected.
-const DRAW_SETTLE_MS = 450;
-
-// A single trigger press can itself produce two audible clicks very close
-// together - e.g. the striker/disconnector release, then the trigger itself
-// hitting its rear travel stop a moment later. Confirmed by testing: with no
-// draw motion and only one deliberate press, two events still landed ~190ms
-// apart. So after ANY registered event (draw or shot) we apply this settle
-// window before the next sound can register - shorter than DRAW_SETTLE_MS
-// since it only needs to cover one press's own mechanical follow-through,
-// not a whole cluster of draw-stroke noises. Trade-off: a genuinely
-// separate follow-up shot fired faster than this after the previous one
-// would also be swallowed - flag it if you ever do fast multiple shots and
-// notice one going missing.
-const SHOT_SETTLE_MS = 260;
+// Earlier attempt: a fixed longer "settle window" after the draw (and after
+// each shot) to swallow extra draw-stroke noises / an assumed double-click.
+// Reverted - testing showed a real, fast trigger press produces exactly one
+// click (no second sound), and a fast draw-to-shot time can land well inside
+// any such fixed window, so it silently ate real shots. Back to a single
+// flat REFRACTORY_MS for every event, relying on the ZCR brightness gate
+// above (not on timing) to tell a genuine click apart from duller draw-noise
+// that happens to follow closely. Known limit, from the reference samples:
+// the draw's brightest moment (zcr ~0.20) and the quietest real click
+// (zcr ~0.20) sit right next to each other, so this can't be made perfect
+// from amplitude+brightness alone in every case.
 
 // The built-in phone mic (without autoGainControl, which we disable so the
 // sensitivity slider stays meaningful) reads noticeably quieter than a
@@ -149,7 +137,6 @@ export function useShotTimer({ onCommit } = {}) {
   const beepAtRef = useRef(0);
   const beepGuardUntilRef = useRef(0);
   const lastEventAtRef = useRef(0);
-  const lastEventKindRef = useRef(null); // "draw" | "shot" | null - which refractory window applies next
   const eventCountRef = useRef(0); // events detected since the last beep, used for draw tagging
   const noiseFloorRef = useRef(0); // rolling ambient peak level, used to filter out incidental noise
   const armTimeoutRef = useRef(null);
@@ -243,15 +230,7 @@ export function useShotTimer({ onCommit } = {}) {
     if (peak > maxPeakSinceSampleRef.current) maxPeakSinceSampleRef.current = peak;
 
     const threshold = (6 + (100 - settingsRef.current.sensitivity) * 0.7) / 127; // 0-1 scale
-    // The draw stroke itself can contain a short cluster of loud sub-sounds -
-    // give it more room to settle than the gap we require between shots.
-    const refractoryMs =
-      lastEventKindRef.current === "draw"
-        ? DRAW_SETTLE_MS
-        : lastEventKindRef.current === "shot"
-          ? SHOT_SETTLE_MS
-          : REFRACTORY_MS;
-    const inRefractory = now - lastEventAtRef.current <= refractoryMs;
+    const inRefractory = now - lastEventAtRef.current <= REFRACTORY_MS;
     // A real click must both clear the fixed floor AND stand out clearly
     // above whatever ambient/incidental noise level we've been seeing - this
     // is what rejects a quieter stray noise that still happens to clear the
@@ -283,7 +262,6 @@ export function useShotTimer({ onCommit } = {}) {
       const t = now - beepAtRef.current;
       eventCountRef.current += 1;
       const kind = wouldBeDraw ? "draw" : "shot";
-      lastEventKindRef.current = kind;
       setShots((prev) => [...prev, { t, kind }]);
       eventKindSinceSampleRef.current = kind;
     } else if (!inRefractory) {
@@ -543,7 +521,6 @@ export function useShotTimer({ onCommit } = {}) {
       playBeep();
       beepAtRef.current = performance.now();
       lastEventAtRef.current = 0;
-      lastEventKindRef.current = null;
       eventCountRef.current = 0;
       noiseFloorRef.current = 0;
       waveformSampleAtRef.current = performance.now();
