@@ -363,11 +363,36 @@ function Waveform({ waveform, active }) {
   );
 }
 
-function SettingsPanel({ t, auth }) {
+const SETTINGS_SECTIONS = [
+  { key: "timer", label: "Timer-Einstellungen" },
+  { key: "account", label: "Account" },
+  { key: "about", label: "Über FORT Timer" },
+  { key: "privacy", label: "Datenschutz" },
+];
+
+function IconChevronRight() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function SettingsBackButton({ onBack }) {
+  return (
+    <button className="settings-back" onClick={onBack}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 6l-6 6 6 6" />
+      </svg>
+      Einstellungen
+    </button>
+  );
+}
+
+function TimerSettingsSection({ t }) {
   const s = t.settings;
   return (
     <>
-      <div className="settings-section-label">Timer-Einstellungen</div>
       <div className="panel">
         <h2>Erkennung</h2>
         <div className="field">
@@ -429,35 +454,48 @@ function SettingsPanel({ t, auth }) {
           />
         </div>
       </div>
-
-      <div className="settings-section-label">Account</div>
-      <div className="panel">
-        <h2>Rechtliches</h2>
-        {auth?.user ? (
-          <p className="account-email">{auth.user.email}</p>
-        ) : (
-          <div className="field-hint" style={{ marginBottom: 10 }}>
-            Nicht angemeldet - melde dich im Konto-Tab an, um Passwort/E-Mail zu ändern oder deinen
-            Account zu löschen.
-          </div>
-        )}
-        <a
-          className="inline-link"
-          href="https://www.wemacon.de/impressum"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Impressum: www.wemacon.de/impressum
-        </a>
-      </div>
-      {auth?.user && <AccountSecurityPanel auth={auth} />}
-
-      <div className="settings-section-label">Über FORT Timer</div>
-      <AboutPanel />
-
-      <div className="settings-section-label">Datenschutz</div>
-      <PrivacyPanel />
     </>
+  );
+}
+
+function AccountSettingsSection({ auth }) {
+  if (!auth?.user) {
+    return (
+      <div className="panel">
+        <div className="field-hint">
+          Nicht angemeldet - melde dich im Konto-Tab an, um Passwort/E-Mail zu ändern oder deinen
+          Account zu löschen.
+        </div>
+      </div>
+    );
+  }
+  return <AccountSecurityPanel auth={auth} />;
+}
+
+function SettingsPanel({ t, auth }) {
+  const [section, setSection] = useState(null);
+
+  if (section) {
+    return (
+      <>
+        <SettingsBackButton onBack={() => setSection(null)} />
+        {section === "timer" && <TimerSettingsSection t={t} />}
+        {section === "account" && <AccountSettingsSection auth={auth} />}
+        {section === "about" && <AboutSection />}
+        {section === "privacy" && <PrivacySection />}
+      </>
+    );
+  }
+
+  return (
+    <div className="settings-menu">
+      {SETTINGS_SECTIONS.map((sec) => (
+        <button key={sec.key} className="settings-menu-item" onClick={() => setSection(sec.key)}>
+          <span>{sec.label}</span>
+          <IconChevronRight />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -610,123 +648,107 @@ function Footer() {
   );
 }
 
-function CollapsiblePanel({ title, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
+function AboutSection() {
+  return (
+    <>
+      <div className="panel about-panel">
+        <div className="about-body">
+          <p className="about-lede">Progress doesn't happen by accident.</p>
+          <p>
+            FORT Timer was developed to make dry-fire practice structured, repeatable and
+            measurable. Whether you're training at home or preparing for your next competition,
+            every repetition provides valuable feedback.
+          </p>
+          <p>
+            Using your phone's microphone, the app detects your draw and trigger press, helping
+            you monitor consistency and identify improvement over time.
+          </p>
+          <p className="about-closing">Train with purpose. Improve with every repetition.</p>
+
+          <h2>The FORT Principles</h2>
+          <ul className="about-principles">
+            <li>Focus with intent.</li>
+            <li>Observe objectively.</li>
+            <li>Respond decisively.</li>
+            <li>Train relentlessly.</li>
+          </ul>
+
+          <p className="about-note">
+            Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
+          </p>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Rechtliches</h2>
+        <a className="inline-link" href="https://www.wemacon.de/impressum" target="_blank" rel="noopener noreferrer">
+          Impressum
+        </a>
+      </div>
+    </>
+  );
+}
+
+function PrivacySection() {
   return (
     <div className="panel about-panel">
-      <button className="about-toggle" onClick={() => setOpen((v) => !v)}>
-        <span>{title}</span>
-        <svg
-          className={`about-chevron ${open ? "open" : ""}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
+      <div className="about-body">
+        <p>
+          FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
+          Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden
+          nirgends hin übertragen.
+        </p>
+        <p>
+          Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten über unseren
+          Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher), damit dein
+          Trainingsverlauf geräteübergreifend verfügbar ist:
+        </p>
 
-      {open && <div className="about-body">{children}</div>}
+        <h2>Konto &amp; Anmeldung</h2>
+        <p>
+          E-Mail-Adresse und (verschlüsseltes) Passwort, oder bei Anmeldung über Google die von
+          Google bereitgestellten Kontodaten (E-Mail, Name). Für Google-Anmeldung gilt zusätzlich
+          die Datenschutzerklärung von Google.
+        </p>
+
+        <h2>Profil &amp; Rangliste</h2>
+        <p>
+          Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
+          sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein
+          hinterlegter echter Name bleibt dagegen immer privat und wird niemandem angezeigt.
+          Equipment, das du als "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
+        </p>
+
+        <h2>Trainingsdaten</h2>
+        <p>
+          Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
+          Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
+          Wochen-Trend und Rangliste zu ermöglichen. Du kannst einzelne Läufe jederzeit löschen.
+        </p>
+
+        <h2>Mikrofonzugriff</h2>
+        <p>
+          Das Mikrofon wird nur benötigt, um Holster-Zug und Abzugsklick in Echtzeit lokal auf
+          deinem Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen -
+          weder lokal noch an unsere Server.
+        </p>
+
+        <h2>Kein Tracking</h2>
+        <p>FORT Timer verwendet keine Analyse-, Tracking- oder Werbedienste Dritter.</p>
+
+        <h2>Deine Rechte</h2>
+        <p>
+          Du kannst deine Profildaten jederzeit im Konto-Tab ändern und deinen kompletten Account
+          inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
+        </p>
+
+        <h2>Verantwortlicher &amp; Kontakt</h2>
+        <p>
+          Anbieter dieser App: wemacon, Impressum unter Einstellungen → Über FORT Timer. Fragen zum
+          Datenschutz: <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
+        </p>
+      </div>
     </div>
-  );
-}
-
-function AboutPanel() {
-  return (
-    <CollapsiblePanel title="About FORT Shot Timer">
-      <p className="about-lede">Progress doesn't happen by accident.</p>
-      <p>
-        FORT Timer was developed to make dry-fire practice structured, repeatable and measurable.
-        Whether you're training at home or preparing for your next competition, every repetition
-        provides valuable feedback.
-      </p>
-      <p>
-        Using your phone's microphone, the app detects your draw and trigger press, helping you
-        monitor consistency and identify improvement over time.
-      </p>
-      <p className="about-closing">Train with purpose. Improve with every repetition.</p>
-
-      <h2>The FORT Principles</h2>
-      <ul className="about-principles">
-        <li>Focus with intent.</li>
-        <li>Observe objectively.</li>
-        <li>Respond decisively.</li>
-        <li>Train relentlessly.</li>
-      </ul>
-
-      <p className="about-note">
-        Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
-      </p>
-    </CollapsiblePanel>
-  );
-}
-
-function PrivacyPanel() {
-  return (
-    <CollapsiblePanel title="Datenschutz">
-      <p>
-        FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
-        Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden nirgends
-        hin übertragen.
-      </p>
-      <p>
-        Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten über unseren
-        Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher), damit dein
-        Trainingsverlauf geräteübergreifend verfügbar ist:
-      </p>
-
-      <h2>Konto &amp; Anmeldung</h2>
-      <p>
-        E-Mail-Adresse und (verschlüsseltes) Passwort, oder bei Anmeldung über Google die von
-        Google bereitgestellten Kontodaten (E-Mail, Name). Für Google-Anmeldung gilt zusätzlich die
-        Datenschutzerklärung von Google.
-      </p>
-
-      <h2>Profil &amp; Rangliste</h2>
-      <p>
-        Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
-        sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein hinterlegter
-        echter Name bleibt dagegen immer privat und wird niemandem angezeigt. Equipment, das du als
-        "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
-      </p>
-
-      <h2>Trainingsdaten</h2>
-      <p>
-        Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
-        Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
-        Wochen-Trend und Rangliste zu ermöglichen. Du kannst einzelne Läufe jederzeit löschen.
-      </p>
-
-      <h2>Mikrofonzugriff</h2>
-      <p>
-        Das Mikrofon wird nur benötigt, um Holster-Zug und Abzugsklick in Echtzeit lokal auf deinem
-        Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen - weder
-        lokal noch an unsere Server.
-      </p>
-
-      <h2>Kein Tracking</h2>
-      <p>
-        FORT Timer verwendet keine Analyse-, Tracking- oder Werbedienste Dritter.
-      </p>
-
-      <h2>Deine Rechte</h2>
-      <p>
-        Du kannst deine Profildaten jederzeit im Konto-Tab ändern und deinen kompletten Account
-        inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
-      </p>
-
-      <h2>Verantwortlicher &amp; Kontakt</h2>
-      <p>
-        Anbieter dieser App: wemacon, Impressum unter{" "}
-        <a href="https://www.wemacon.de/impressum" target="_blank" rel="noopener noreferrer">
-          www.wemacon.de/impressum
-        </a>
-        . Fragen zum Datenschutz: <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
-      </p>
-    </CollapsiblePanel>
   );
 }
 
@@ -1116,7 +1138,7 @@ function IconApple() {
   );
 }
 
-function startOfWeek(dateInput) {
+function startOfWeek(dateInput = new Date()) {
   const d = new Date(dateInput);
   const day = (d.getDay() + 6) % 7; // Monday = 0
   d.setHours(0, 0, 0, 0);
