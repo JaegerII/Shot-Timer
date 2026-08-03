@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const HISTORY_KEY = "shot-timer-history";
 const SETTINGS_KEY = "shot-timer-settings";
 
 const DEFAULT_SETTINGS = {
@@ -12,12 +11,6 @@ const DEFAULT_SETTINGS = {
   drawDetection: true, // auto-tag the first detected sound in a run as the holster draw, not a shot
 };
 
-// Not a fixed live-view window anymore - the waveform panel now scrolls, and
-// after Stop it shows the whole run so you can scroll back and see exactly
-// where the draw and the shot landed. This is just a safety cap so an
-// accidentally very long run doesn't grow the array forever.
-const MAX_BARS = 2000;
-const SAMPLE_INTERVAL_MS = 70;
 const REFRACTORY_MS = 180; // baseline min gap between two detected events
 const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audio thread
 
@@ -94,34 +87,9 @@ function fmt(ms) {
   return (ms / 1000).toFixed(2);
 }
 
-// Older history entries stored shots as plain numbers; normalize to objects.
-export function normalizeEvent(s) {
+// Older shot arrays stored events as plain numbers; normalize to objects.
+function normalizeEvent(s) {
   return typeof s === "number" ? { t: s, kind: "shot" } : s;
-}
-
-// The time of the last real shot (ignoring a tagged draw), used for the
-// history summary. Falls back to the last event if nothing is tagged.
-function lastShotTime(shotsArr) {
-  const normalized = (shotsArr || []).map(normalizeEvent);
-  const shotsOnly = normalized.filter((s) => s.kind === "shot");
-  const list = shotsOnly.length ? shotsOnly : normalized;
-  return list.length ? list[list.length - 1].t : 0;
-}
-
-// For the dashboard: only the draw and the *first* real shot count.
-// Everything after that (re-holstering, follow-up shots, re-cocking noise)
-// is intentionally ignored so it can't skew the trend.
-export function runSummary(shotsArr) {
-  const normalized = (shotsArr || []).map(normalizeEvent);
-  const draw = normalized.find((s) => s.kind === "draw") ?? null;
-  const firstShot = normalized.find((s) => s.kind === "shot") ?? null;
-  const shotCount = normalized.filter((s) => s.kind === "shot").length;
-  return {
-    drawMs: draw ? draw.t : null,
-    firstShotMs: firstShot ? firstShot.t : null,
-    drawToShotMs: draw && firstShot ? firstShot.t - draw.t : null,
-    shotCount,
-  };
 }
 
 export function useShotTimer() {
@@ -129,12 +97,10 @@ export function useShotTimer() {
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
   }));
-  const [history, setHistory] = useState(() => loadJSON(HISTORY_KEY, []));
   const [phase, setPhase] = useState("idle"); // idle | arming | listening | done
   const [shots, setShots] = useState([]); // [{t: ms since beep, kind: "shot" | "draw"}]
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [armRemaining, setArmRemaining] = useState(null); // ms left until beep, or null
-  const [waveform, setWaveform] = useState([]); // [{level: 0-100, kind: "shot"|"draw"|null}]
   const [micError, setMicError] = useState(null);
   const [micReady, setMicReady] = useState(false);
 
@@ -154,13 +120,8 @@ export function useShotTimer() {
   const armIntervalRef = useRef(null);
   const parTimeoutRef = useRef(null);
   const liveIntervalRef = useRef(null);
-  const waveformSampleAtRef = useRef(0);
-  const maxPeakSinceSampleRef = useRef(0);
-  const eventKindSinceSampleRef = useRef(null);
   const phaseRef = useRef("idle");
   const settingsRef = useRef(settings);
-  const shotsRef = useRef([]);
-  const currentRunIdRef = useRef(null); // local history id of the run currently shown/reviewable on the Timer tab
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -169,10 +130,6 @@ export function useShotTimer() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-
-  useEffect(() => {
-    shotsRef.current = shots;
-  }, [shots]);
 
   const setSettings = useCallback((patch) => {
     setSettingsState((prev) => {
@@ -220,7 +177,7 @@ export function useShotTimer() {
     const now = performance.now();
     // Ignore mic input entirely while the beep itself is still sounding, so
     // its acoustic bleed into the mic (no headphones = same device for both)
-    // never gets misread as the draw/shot.
+    // never gets misread as the draw/shot itself.
     if (now < beepGuardUntilRef.current) return;
 
     const input = event.inputBuffer.getChannelData(0);
@@ -233,8 +190,6 @@ export function useShotTimer() {
         peakIdx = i;
       }
     }
-
-    if (peak > maxPeakSinceSampleRef.current) maxPeakSinceSampleRef.current = peak;
 
     const threshold = (6 + (100 - settingsRef.current.sensitivity) * 0.7) / 127; // 0-1 scale
     const inRefractory = now - lastEventAtRef.current <= REFRACTORY_MS;
@@ -276,23 +231,10 @@ export function useShotTimer() {
       const kind = wouldBeDraw ? "draw" : "shot";
       if (kind === "draw") drawPeakRef.current = peak;
       setShots((prev) => [...prev, { t, kind }]);
-      eventKindSinceSampleRef.current = kind;
     } else if (!inRefractory) {
       // Not a registered event and not the decay tail of a recent one - safe
       // to fold into the rolling ambient noise floor.
       noiseFloorRef.current = noiseFloorRef.current * (1 - NOISE_FLOOR_ALPHA) + peak * NOISE_FLOOR_ALPHA;
-    }
-
-    if (now - waveformSampleAtRef.current >= SAMPLE_INTERVAL_MS) {
-      const level = Math.min(100, Math.round(maxPeakSinceSampleRef.current * 100));
-      const kind = eventKindSinceSampleRef.current;
-      setWaveform((prev) => {
-        const next = [...prev, { level, kind }];
-        return next.length > MAX_BARS ? next.slice(next.length - MAX_BARS) : next;
-      });
-      maxPeakSinceSampleRef.current = 0;
-      eventKindSinceSampleRef.current = null;
-      waveformSampleAtRef.current = now;
     }
   }, []);
 
@@ -444,75 +386,7 @@ export function useShotTimer() {
     liveIntervalRef.current = null;
   }, []);
 
-  const commitToHistory = useCallback((shotsArr) => {
-    if (!shotsArr || shotsArr.length === 0) return;
-    const id = Date.now();
-    currentRunIdRef.current = id;
-    const entry = {
-      id,
-      date: new Date().toISOString(),
-      total: lastShotTime(shotsArr),
-      shots: shotsArr,
-    };
-    setHistory((prev) => {
-      // Raised from 20: local history now also feeds the week-over-week
-      // dashboard trend.
-      const next = [entry, ...prev].slice(0, 500);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  // Shared by toggleEventKind/deleteShot below: applies an edit to the live
-  // shots array, and - if this run was already committed (Stop was pressed)
-  // - carries the same correction into the saved history entry too. Without
-  // this, correcting a misdetected event would only fix what's on screen
-  // right now, while the dashboard/CSV export kept using the uncorrected data.
-  const applyShotsEdit = useCallback((updater) => {
-    setShots((prev) => {
-      const next = updater(prev);
-      const runId = currentRunIdRef.current;
-      if (runId != null) {
-        setHistory((prevHist) => {
-          const idx = prevHist.findIndex((h) => h.id === runId);
-          if (idx === -1) return prevHist;
-          const updatedEntry = { ...prevHist[idx], shots: next, total: lastShotTime(next) };
-          const nextHist = [...prevHist];
-          nextHist[idx] = updatedEntry;
-          localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHist));
-          return nextHist;
-        });
-      }
-      return next;
-    });
-  }, []);
-
-  // Flip a detected event between "shot" and "draw" - for when the
-  // auto-tagging (first sound = draw) guessed wrong.
-  const toggleEventKind = useCallback(
-    (index) => {
-      applyShotsEdit((prev) =>
-        prev.map((s, i) => {
-          if (i !== index) return s;
-          const ev = normalizeEvent(s);
-          return { t: ev.t, kind: ev.kind === "draw" ? "shot" : "draw" };
-        })
-      );
-    },
-    [applyShotsEdit]
-  );
-
-  // Removes a single misdetected event (e.g. racking the slide picked up as
-  // a shot) from the current run - see applyShotsEdit for why this also
-  // updates the already-saved run, not just the on-screen list.
-  const deleteShot = useCallback(
-    (index) => {
-      applyShotsEdit((prev) => prev.filter((_, i) => i !== index));
-    },
-    [applyShotsEdit]
-  );
-
-  // Discards the current run entirely (no history entry) and goes back to idle.
+  // Discards the current run entirely and goes back to idle.
   const reset = useCallback(() => {
     clearTimers();
     releaseWakeLock();
@@ -521,23 +395,20 @@ export function useShotTimer() {
     setShots([]);
     setLiveElapsed(0);
     setArmRemaining(null);
-    setWaveform([]);
-    currentRunIdRef.current = null;
   }, [clearTimers, releaseWakeLock, releaseMic]);
 
-  // Manually ends the run so the splits stay on screen for review. Saves the
-  // string to history right away; pressing GO afterwards starts a fresh one.
+  // Manually ends the run so the result stays on screen for review. Pressing
+  // GO afterwards starts a fresh one.
   const stop = useCallback(() => {
     clearTimers();
     releaseWakeLock();
     releaseMic();
-    commitToHistory(shotsRef.current);
     setPhase((p) => (p === "listening" || p === "arming" ? "done" : p));
-  }, [clearTimers, releaseWakeLock, releaseMic, commitToHistory]);
+  }, [clearTimers, releaseWakeLock, releaseMic]);
 
-  // GO always works: if a run is still going (Stop wasn't pressed), its shots
-  // are saved to history first, then a fresh delay + beep starts immediately.
-  // The listening phase itself never times out on its own.
+  // GO always works: if a run is still going (Stop wasn't pressed), it's
+  // simply discarded and a fresh delay + beep starts immediately. The
+  // listening phase itself never times out on its own.
   const start = useCallback(async () => {
     const ok = await ensureMic();
     if (!ok) return;
@@ -545,16 +416,10 @@ export function useShotTimer() {
       await audioCtxRef.current.resume();
     }
 
-    if (phaseRef.current === "listening" || phaseRef.current === "arming") {
-      commitToHistory(shotsRef.current);
-    }
-
     clearTimers();
     requestWakeLock();
     setShots([]);
     setLiveElapsed(0);
-    setWaveform([]);
-    currentRunIdRef.current = null;
     setPhase("arming");
 
     const s = settingsRef.current;
@@ -577,9 +442,6 @@ export function useShotTimer() {
       eventCountRef.current = 0;
       noiseFloorRef.current = 0;
       drawPeakRef.current = 0;
-      waveformSampleAtRef.current = performance.now();
-      maxPeakSinceSampleRef.current = 0;
-      eventKindSinceSampleRef.current = null;
       setPhase("listening");
 
       liveIntervalRef.current = setInterval(() => {
@@ -592,22 +454,7 @@ export function useShotTimer() {
         }, s.parTime * 1000);
       }
     }, delay * 1000);
-  }, [ensureMic, playBeep, clearTimers, commitToHistory, requestWakeLock]);
-
-  const clearHistory = useCallback(() => {
-    setHistory([]);
-    localStorage.removeItem(HISTORY_KEY);
-  }, []);
-
-  // Removes a single run (e.g. a bad take where some other noise threw off
-  // detection) instead of wiping the whole local history.
-  const deleteHistoryEntry = useCallback((id) => {
-    setHistory((prev) => {
-      const next = prev.filter((h) => h.id !== id);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  }, [ensureMic, playBeep, clearTimers, requestWakeLock]);
 
   useEffect(() => () => {
     clearTimers();
@@ -641,18 +488,11 @@ export function useShotTimer() {
     shotCount,
     liveElapsed,
     armRemaining,
-    waveform,
     micError,
     micReady,
-    history,
-    clearHistory,
-    deleteHistoryEntry,
     start,
     stop,
     reset,
-    toggleEventKind,
-    deleteShot,
     fmt,
-    normalizeEvent,
   };
 }
