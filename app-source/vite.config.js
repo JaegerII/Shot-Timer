@@ -6,7 +6,7 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   build: {
-    outDir: 'build-final27',
+    outDir: 'build-final40',
     emptyOutDir: false,
   },
 })
