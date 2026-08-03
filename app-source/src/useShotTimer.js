@@ -443,6 +443,16 @@ export function useShotTimer({ onCommit } = {}) {
     localStorage.removeItem(HISTORY_KEY);
   }, []);
 
+  // Removes a single run (e.g. a bad take where some other noise threw off
+  // detection) instead of wiping the whole local history.
+  const deleteHistoryEntry = useCallback((id) => {
+    setHistory((prev) => {
+      const next = prev.filter((h) => h.id !== id);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   useEffect(() => () => {
     clearTimers();
     releaseWakeLock();
@@ -479,6 +489,7 @@ export function useShotTimer({ onCommit } = {}) {
     micReady,
     history,
     clearHistory,
+    deleteHistoryEntry,
     start,
     stop,
     reset,

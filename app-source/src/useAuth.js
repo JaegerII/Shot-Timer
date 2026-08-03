@@ -42,6 +42,36 @@ export function useAuth() {
     await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
   }, []);
 
+  const updatePassword = useCallback(async (password) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    return error ? error.message : null;
+  }, []);
+
+  const updateEmail = useCallback(async (email) => {
+    const { error } = await supabase.auth.updateUser({ email });
+    return error ? error.message : null;
+  }, []);
+
+  // Calls the "delete-account" Edge Function rather than doing this
+  // client-side - permanently removing an auth user requires the
+  // service_role key, which must never be embedded in the app. The function
+  // verifies the caller's own session token and only ever deletes that user.
+  const deleteAccount = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return "Nicht angemeldet.";
+    try {
+      const { error } = await supabase.functions.invoke("delete-account", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) return error.message || "Löschen fehlgeschlagen.";
+      await supabase.auth.signOut();
+      return null;
+    } catch (err) {
+      return err?.message || "Löschen fehlgeschlagen.";
+    }
+  }, []);
+
   return {
     session,
     user: session?.user ?? null,
@@ -51,5 +81,8 @@ export function useAuth() {
     signOut,
     signInWithGoogle,
     signInWithApple,
+    updatePassword,
+    updateEmail,
+    deleteAccount,
   };
 }

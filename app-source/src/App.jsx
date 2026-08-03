@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { runSummary, useShotTimer } from "./useShotTimer";
 import { useAuth } from "./useAuth";
+import { useProfile } from "./useProfile";
 import { supabase } from "./supabaseClient";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.2.0";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -17,13 +18,21 @@ function Toggle({ on, onClick }) {
 
 export default function App() {
   const auth = useAuth();
+  const profileHook = useProfile(auth.user);
   const userIdRef = useRef(auth.user?.id ?? null);
+  const activeGearNameRef = useRef(null);
   useEffect(() => {
     userIdRef.current = auth.user?.id ?? null;
   }, [auth.user]);
+  useEffect(() => {
+    activeGearNameRef.current = profileHook.profile?.active_gear_name ?? null;
+  }, [profileHook.profile]);
 
   // Only the draw + first-shot time get synced - everything after that
-  // (re-holstering, follow-up shots) would only skew the trend.
+  // (re-holstering, follow-up shots) would only skew the trend. The gear
+  // name is a snapshot of whatever's currently marked "active" in the
+  // Konto tab, so the leaderboard can show it without exposing the private
+  // gear table to other users.
   const syncRunToSupabase = useCallback(async (entry) => {
     const userId = userIdRef.current;
     if (!userId) return;
@@ -38,6 +47,7 @@ export default function App() {
         draw_to_shot_ms: summary.drawToShotMs,
         shot_count: summary.shotCount,
         raw_shots: entry.shots,
+        gear_name: activeGearNameRef.current,
       });
     } catch (err) {
       console.warn("Supabase sync failed:", err);
@@ -45,7 +55,7 @@ export default function App() {
   }, []);
 
   const t = useShotTimer({ onCommit: syncRunToSupabase });
-  const [tab, setTab] = useState("timer"); // timer | dashboard | account | settings | history | about
+  const [tab, setTab] = useState("timer"); // timer | dashboard | leaderboard | account | settings | history
 
   const running = t.phase === "arming" || t.phase === "listening";
 
@@ -70,25 +80,28 @@ export default function App() {
     <div className="app">
       <div className="topo-bg-layer" style={{ backgroundImage: `url(${TOPO_BG_URL})` }} />
       <div className="header">
-        <div className="header-brand">
+        <button className="header-brand" onClick={() => setTab("timer")}>
           <img src="./icons/logo-header.png" alt="" className="header-logo" />
           <h1>FORT Timer</h1>
-        </div>
+        </button>
       </div>
 
       {t.micError && <div className="mic-warning">{t.micError}</div>}
 
       <div className="tab-content">
       {tab === "settings" ? (
-        <SettingsPanel t={t} />
+        <SettingsPanel t={t} auth={auth} />
       ) : tab === "history" ? (
         <HistoryPanel t={t} onBack={() => setTab("timer")} />
       ) : tab === "account" ? (
-        <AccountPanel auth={auth} />
+        <AccountPanel auth={auth} profileHook={profileHook} />
+      ) : tab === "leaderboard" ? (
+        <LeaderboardPanel auth={auth} onAccount={() => setTab("account")} />
       ) : tab === "dashboard" ? (
         <DashboardPanel
           auth={auth}
           localHistory={t.history}
+          onDeleteLocal={t.deleteHistoryEntry}
           onAccount={() => setTab("account")}
         />
       ) : (
@@ -164,6 +177,7 @@ function BottomNav({ tab, setTab }) {
   const items = [
     { key: "timer", label: "Timer", icon: IconTimer },
     { key: "dashboard", label: "Dashboard", icon: IconDashboard },
+    { key: "leaderboard", label: "Rangliste", icon: IconLeaderboard },
     { key: "account", label: "Konto", icon: IconAccount },
     { key: "settings", label: "Einstellungen", icon: IconSettings },
   ];
@@ -206,6 +220,18 @@ function IconDashboard() {
       <path d="M4 20V10" />
       <path d="M11 20V4" />
       <path d="M18 20v-7" />
+    </svg>
+  );
+}
+
+function IconLeaderboard() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 5H4a3 3 0 0 0 3 4" />
+      <path d="M17 5h3a3 3 0 0 1-3 4" />
     </svg>
   );
 }
@@ -301,7 +327,7 @@ function Waveform({ waveform, active }) {
   );
 }
 
-function SettingsPanel({ t }) {
+function SettingsPanel({ t, auth }) {
   const s = t.settings;
   return (
     <>
@@ -367,6 +393,145 @@ function SettingsPanel({ t }) {
         </div>
       </div>
 
+      {auth?.user && <AccountSecurityPanel auth={auth} />}
+    </>
+  );
+}
+
+function AccountSecurityPanel({ auth }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState(null);
+  const [pwError, setPwError] = useState(null);
+
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState(null);
+  const [emailError, setEmailError] = useState(null);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const submitPassword = async (e) => {
+    e.preventDefault();
+    setPwError(null);
+    setPwMsg(null);
+    if (newPassword.length < 6) {
+      setPwError("Mindestens 6 Zeichen.");
+      return;
+    }
+    setPwBusy(true);
+    const err = await auth.updatePassword(newPassword);
+    setPwBusy(false);
+    if (err) setPwError(err);
+    else {
+      setPwMsg("Passwort geändert.");
+      setNewPassword("");
+    }
+  };
+
+  const submitEmail = async (e) => {
+    e.preventDefault();
+    setEmailError(null);
+    setEmailMsg(null);
+    if (!newEmail.trim()) {
+      setEmailError("Bitte eine E-Mail-Adresse eingeben.");
+      return;
+    }
+    setEmailBusy(true);
+    const err = await auth.updateEmail(newEmail.trim());
+    setEmailBusy(false);
+    if (err) setEmailError(err);
+    else {
+      setEmailMsg("Bestätigungslink an die neue und/oder alte Adresse gesendet - bitte E-Mail prüfen.");
+      setNewEmail("");
+    }
+  };
+
+  const submitDelete = async () => {
+    setDeleteError(null);
+    setDeleteBusy(true);
+    const err = await auth.deleteAccount();
+    setDeleteBusy(false);
+    if (err) setDeleteError(err);
+  };
+
+  return (
+    <>
+      <div className="panel">
+        <h2>Passwort ändern</h2>
+        <form onSubmit={submitPassword}>
+          <div className="field">
+            <div className="field-label">
+              <span>Neues Passwort</span>
+            </div>
+            <input
+              className="text-input"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          {pwError && <div className="field-hint account-error">{pwError}</div>}
+          {pwMsg && <div className="field-hint">{pwMsg}</div>}
+          <button className="sec-btn" type="submit" disabled={pwBusy} style={{ marginTop: 10 }}>
+            {pwBusy ? "..." : "Passwort speichern"}
+          </button>
+        </form>
+      </div>
+
+      <div className="panel">
+        <h2>E-Mail ändern</h2>
+        <div className="field-hint" style={{ marginBottom: 10 }}>
+          Aktuell: {auth.user.email}
+        </div>
+        <form onSubmit={submitEmail}>
+          <div className="field">
+            <div className="field-label">
+              <span>Neue E-Mail-Adresse</span>
+            </div>
+            <input
+              className="text-input"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          {emailError && <div className="field-hint account-error">{emailError}</div>}
+          {emailMsg && <div className="field-hint">{emailMsg}</div>}
+          <button className="sec-btn" type="submit" disabled={emailBusy} style={{ marginTop: 10 }}>
+            {emailBusy ? "..." : "E-Mail speichern"}
+          </button>
+        </form>
+      </div>
+
+      <div className="panel">
+        <h2>Account löschen</h2>
+        <div className="field-hint" style={{ marginBottom: 10 }}>
+          Löscht dein Konto und alle Daten (Profil, Läufe, Equipment) unwiderruflich.
+        </div>
+        {deleteError && <div className="field-hint account-error">{deleteError}</div>}
+        {!confirmDelete ? (
+          <button className="sec-btn danger-btn" onClick={() => setConfirmDelete(true)}>
+            Account löschen
+          </button>
+        ) : (
+          <div className="delete-confirm-row">
+            <span className="field-hint">Wirklich unwiderruflich löschen?</span>
+            <div className="row-btns">
+              <button className="sec-btn" onClick={() => setConfirmDelete(false)} disabled={deleteBusy}>
+                Abbrechen
+              </button>
+              <button className="sec-btn danger-btn" onClick={submitDelete} disabled={deleteBusy}>
+                {deleteBusy ? "..." : "Ja, löschen"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -432,7 +597,7 @@ function AboutPanel() {
   );
 }
 
-function AccountPanel({ auth }) {
+function AccountPanel({ auth, profileHook }) {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -475,6 +640,11 @@ function AccountPanel({ auth }) {
     await supabase.from("gear").delete().eq("id", id);
   };
 
+  const activeGearName = profileHook?.profile?.active_gear_name ?? null;
+  const markActiveGear = async (name) => {
+    await profileHook?.setActiveGear(name);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -512,10 +682,6 @@ function AccountPanel({ auth }) {
             <button className="oauth-btn" onClick={() => auth.signInWithGoogle()}>
               <IconGoogle />
               Mit Google
-            </button>
-            <button className="oauth-btn" onClick={() => auth.signInWithApple()}>
-              <IconApple />
-              Mit Apple
             </button>
           </div>
           <div className="oauth-divider">
@@ -578,10 +744,14 @@ function AccountPanel({ auth }) {
         </button>
       </div>
 
+      <ProfileSection user={auth.user} profileHook={profileHook} />
+
       <div className="panel">
         <h2>Equipment</h2>
         <div className="field-hint" style={{ marginBottom: 12 }}>
-          Dein Trainingstagebuch - trage ein, mit welcher Ausrüstung du übst.
+          Dein Trainingstagebuch - trage ein, mit welcher Ausrüstung du übst. Als
+          "aktuell" markiertes Equipment wird bei neuen Läufen mit gespeichert
+          und in der Rangliste angezeigt.
         </div>
         {gearLoading ? (
           <span className="field-hint">Lädt...</span>
@@ -591,6 +761,13 @@ function AccountPanel({ auth }) {
           <div className="gear-list">
             {gear.map((g) => (
               <div className="gear-row" key={g.id}>
+                <button
+                  className={`gear-active-btn ${activeGearName === g.name ? "active" : ""}`}
+                  onClick={() => markActiveGear(g.name)}
+                  title="Als aktuell verwendet markieren"
+                >
+                  {activeGearName === g.name ? "★" : "☆"}
+                </button>
                 <span>{g.name}</span>
                 <button className="icon-btn gear-del" onClick={() => deleteGear(g.id)} aria-label="Löschen">
                   ×
@@ -615,6 +792,137 @@ function AccountPanel({ auth }) {
   );
 }
 
+function ProfileSection({ user, profileHook }) {
+  const { profile, privateData, saveProfile, saveFullName, uploadAvatar } = profileHook;
+  const [username, setUsername] = useState("");
+  const [gender, setGender] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    setUsername(profile?.username || "");
+    setGender(profile?.gender || "");
+  }, [profile]);
+
+  useEffect(() => {
+    setFullName(privateData?.full_name || "");
+  }, [privateData]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    const uname = username.trim();
+    if (!uname) {
+      setError("Bitte einen Usernamen wählen.");
+      return;
+    }
+    setBusy(true);
+    const err1 = await saveProfile({ username: uname, gender: gender || null });
+    const err2 = err1 ? null : await saveFullName(fullName.trim() || null);
+    setBusy(false);
+    if (err1) setError(err1);
+    else if (err2) setError(err2);
+    else setInfo("Profil gespeichert.");
+  };
+
+  const onPickAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError(null);
+    setBusy(true);
+    const { error } = await uploadAvatar(file);
+    setBusy(false);
+    if (error) setError(error);
+  };
+
+  return (
+    <div className="panel">
+      <h2>Profil</h2>
+      <div className="avatar-row">
+        <div className="avatar-preview">
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="" />
+          ) : (
+            <span className="avatar-placeholder">{(profile?.username || user.email || "?")[0].toUpperCase()}</span>
+          )}
+        </div>
+        <button
+          className="sec-btn"
+          type="button"
+          disabled={!profile?.username || busy}
+          onClick={() => fileRef.current?.click()}
+        >
+          Profilbild ändern
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickAvatar} />
+      </div>
+      {!profile?.username && (
+        <div className="field-hint" style={{ marginBottom: 10 }}>
+          Wähle zuerst einen Usernamen, dann kannst du ein Profilbild hochladen.
+        </div>
+      )}
+
+      <form onSubmit={submit}>
+        <div className="field">
+          <div className="field-label">
+            <span>Username (öffentlich, in der Rangliste sichtbar)</span>
+          </div>
+          <input
+            className="text-input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="z. B. fast_max"
+          />
+        </div>
+        <div className="field">
+          <div className="field-label">
+            <span>Name (privat, nur für dich)</span>
+          </div>
+          <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </div>
+        <div className="field">
+          <div className="field-label">
+            <span>Geschlecht (in der Rangliste sichtbar)</span>
+          </div>
+          <div className="gender-row">
+            <button
+              type="button"
+              className={`gender-btn ${gender === "male" ? "active" : ""}`}
+              onClick={() => setGender("male")}
+            >
+              Männlich
+            </button>
+            <button
+              type="button"
+              className={`gender-btn ${gender === "female" ? "active" : ""}`}
+              onClick={() => setGender("female")}
+            >
+              Weiblich
+            </button>
+            <button
+              type="button"
+              className={`gender-btn ${gender === "" ? "active" : ""}`}
+              onClick={() => setGender("")}
+            >
+              Keine Angabe
+            </button>
+          </div>
+        </div>
+        {error && <div className="field-hint account-error">{error}</div>}
+        {info && <div className="field-hint">{info}</div>}
+        <button className="main-btn start" type="submit" disabled={busy} style={{ marginTop: 14 }}>
+          {busy ? "..." : "Speichern"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function IconGoogle() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18">
@@ -626,6 +934,9 @@ function IconGoogle() {
   );
 }
 
+// Currently unused: Apple sign-in is temporarily hidden until the Apple
+// Developer OAuth setup is complete. Kept here for quick re-enable.
+// eslint-disable-next-line no-unused-vars
 function IconApple() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -698,12 +1009,12 @@ function WeeklyChart({ weeks }) {
   );
 }
 
-function DashboardPanel({ auth, localHistory, onAccount }) {
+function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
   const [remoteRuns, setRemoteRuns] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const loadRemote = useCallback(() => {
     if (!auth.user) {
       setRemoteRuns(null);
       return;
@@ -712,8 +1023,8 @@ function DashboardPanel({ auth, localHistory, onAccount }) {
     setError(null);
     supabase
       .from("training_runs")
-      .select("run_at, draw_ms, first_shot_ms, draw_to_shot_ms")
-      .order("run_at", { ascending: true })
+      .select("id, run_at, draw_ms, first_shot_ms, draw_to_shot_ms")
+      .order("run_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) setError(error.message);
         else setRemoteRuns(data || []);
@@ -721,9 +1032,20 @@ function DashboardPanel({ auth, localHistory, onAccount }) {
       });
   }, [auth.user]);
 
-  const runs = useMemo(() => {
+  useEffect(() => {
+    loadRemote();
+  }, [loadRemote]);
+
+  const deleteRemoteRun = async (id) => {
+    setRemoteRuns((prev) => (prev || []).filter((r) => r.id !== id));
+    await supabase.from("training_runs").delete().eq("id", id);
+  };
+
+  // Newest-first list for the itemized view/delete UI below the stats.
+  const itemized = useMemo(() => {
     if (auth.user) {
       return (remoteRuns || []).map((r) => ({
+        id: r.id,
         date: r.run_at,
         drawMs: r.draw_ms,
         firstShotMs: r.first_shot_ms,
@@ -731,14 +1053,15 @@ function DashboardPanel({ auth, localHistory, onAccount }) {
       }));
     }
     return localHistory
-      .slice()
-      .reverse()
       .map((h) => {
         const s = runSummary(h.shots);
-        return { date: h.date, drawMs: s.drawMs, firstShotMs: s.firstShotMs, drawToShotMs: s.drawToShotMs };
+        return { id: h.id, date: h.date, drawMs: s.drawMs, firstShotMs: s.firstShotMs, drawToShotMs: s.drawToShotMs };
       })
       .filter((r) => r.firstShotMs != null);
   }, [auth.user, remoteRuns, localHistory]);
+
+  // Same data, oldest-first, for the stats/trend calculations below.
+  const runs = useMemo(() => itemized.slice().reverse(), [itemized]);
 
   const stats = useMemo(() => {
     const withFirstShot = runs.filter((r) => r.firstShotMs != null);
@@ -815,8 +1138,135 @@ function DashboardPanel({ auth, localHistory, onAccount }) {
         </div>
       )}
 
+      {itemized.length > 0 && (
+        <div className="panel">
+          <h2>Läufe</h2>
+          <div className="field-hint" style={{ marginBottom: 10 }}>
+            Ein Lauf durch Fremdgeräusche verfälscht? Hier kannst du ihn aus der Auswertung entfernen.
+          </div>
+          <div className="run-list">
+            {itemized.map((r) => (
+              <div className="run-row" key={r.id}>
+                <div className="run-row-main">
+                  <span className="run-row-date">
+                    {new Date(r.date).toLocaleString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span className="run-row-vals">
+                    {r.drawToShotMs != null ? `Draw→Schuss ${fmt(r.drawToShotMs)}s` : `1. Schuss ${fmt(r.firstShotMs)}s`}
+                  </span>
+                </div>
+                <button
+                  className="icon-btn gear-del"
+                  aria-label="Lauf löschen"
+                  onClick={() => (auth.user ? deleteRemoteRun(r.id) : onDeleteLocal?.(r.id))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <AboutPanel />
     </>
+  );
+}
+
+function GenderBadge({ gender }) {
+  if (gender !== "male" && gender !== "female") return null;
+  return <span className={`gender-badge ${gender}`}>{gender === "male" ? "♂" : "♀"}</span>;
+}
+
+function LeaderboardPanel({ auth, onAccount }) {
+  const [rows, setRows] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!auth.user) {
+      setRows(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    supabase
+      .from("leaderboard")
+      .select("*")
+      .order("draw_to_shot_ms", { ascending: true })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (error) setError(error.message);
+        else setRows(data || []);
+        setLoading(false);
+      });
+  }, [auth.user]);
+
+  if (!auth.user) {
+    return (
+      <div className="panel">
+        <h2>Rangliste</h2>
+        <div className="field-hint">
+          Melde dich an, um die Rangliste aller FORT-Timer-Nutzer zu sehen und mit deinem eigenen Ergebnis
+          mitzumachen.{" "}
+          <button className="inline-link" onClick={onAccount}>
+            Anmelden
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <h2>Rangliste</h2>
+      <div className="field-hint" style={{ marginBottom: 12 }}>
+        Schnellster Lauf (Draw → 1. Schuss) pro Person. Nur sichtbar für angemeldete Nutzer, ohne Klarnamen.
+      </div>
+      {loading && <span className="field-hint">Lädt...</span>}
+      {error && <div className="field-hint account-error">{error}</div>}
+      {!loading && rows && rows.length === 0 && (
+        <span className="field-hint">
+          Noch niemand in der Rangliste. Leg einen Usernamen im Konto-Tab fest und mach den ersten Lauf mit Draw +
+          Schuss.
+        </span>
+      )}
+      {!loading && rows && rows.length > 0 && (
+        <div className="leaderboard-list">
+          {rows.map((r, i) => (
+            <div
+              className={`leaderboard-row ${r.user_id === auth.user.id ? "is-me" : ""}`}
+              key={r.user_id}
+            >
+              <span className="lb-rank">{i + 1}</span>
+              <div className="lb-avatar">
+                {r.avatar_url ? (
+                  <img src={r.avatar_url} alt="" />
+                ) : (
+                  <span>{(r.username || "?")[0].toUpperCase()}</span>
+                )}
+              </div>
+              <div className="lb-name">
+                <span className="lb-username">
+                  {r.username}
+                  <GenderBadge gender={r.gender} />
+                </span>
+                {r.gear_name && <span className="lb-gear">{r.gear_name}</span>}
+              </div>
+              <div className="lb-times">
+                <span className="lb-time-main">{fmt(r.draw_to_shot_ms)}s</span>
+                <span className="lb-time-sub">1. Schuss {fmt(r.first_shot_ms)}s</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -842,6 +1292,13 @@ function HistoryPanel({ t, onBack }) {
                     minute: "2-digit",
                   })}
                 </span>
+                <button
+                  className="icon-btn gear-del"
+                  aria-label="Lauf löschen"
+                  onClick={() => t.deleteHistoryEntry(h.id)}
+                >
+                  ×
+                </button>
               </div>
               <div className="h-splits">
                 {events
