@@ -12,7 +12,11 @@ const DEFAULT_SETTINGS = {
   drawDetection: true, // auto-tag the first detected sound in a run as the holster draw, not a shot
 };
 
-const MAX_BARS = 42;
+// Not a fixed live-view window anymore - the waveform panel now scrolls, and
+// after Stop it shows the whole run so you can scroll back and see exactly
+// where the draw and the shot landed. This is just a safety cap so an
+// accidentally very long run doesn't grow the array forever.
+const MAX_BARS = 2000;
 const SAMPLE_INTERVAL_MS = 70;
 const REFRACTORY_MS = 180; // min gap between two detected events
 const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audio thread

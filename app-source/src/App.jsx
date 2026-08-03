@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShotTimer } from "./useShotTimer";
 
 const APP_VERSION = "1.0.0";
@@ -196,6 +196,27 @@ function ParTimeQuickBar({ t }) {
 }
 
 function Waveform({ waveform, active }) {
+  const scrollRef = useRef(null);
+  const wasActiveRef = useRef(active);
+
+  // While listening, keep the view pinned to the newest sample - like a
+  // live meter scrolling forward.
+  useEffect(() => {
+    if (!active) return;
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [waveform, active]);
+
+  // Once a run ends, jump back to the start so you can scroll through the
+  // whole track from the draw onward and see where each event landed.
+  useEffect(() => {
+    if (wasActiveRef.current && !active) {
+      const el = scrollRef.current;
+      if (el) el.scrollLeft = 0;
+    }
+    wasActiveRef.current = active;
+  }, [active]);
+
   return (
     <div className="waveform-panel">
       {waveform.length === 0 ? (
@@ -203,7 +224,7 @@ function Waveform({ waveform, active }) {
           {active ? "Höre auf Audio..." : "Audio-Anzeige erscheint während des Laufs"}
         </div>
       ) : (
-        <div className="waveform-bars">
+        <div className="waveform-bars" ref={scrollRef}>
           {waveform.map((b, i) => (
             <div key={i} className="wave-bar-col">
               <div
