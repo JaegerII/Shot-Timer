@@ -365,6 +365,7 @@ body {
   margin-bottom: 16px;
   height: 92px;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .waveform-empty {
@@ -445,6 +446,13 @@ body {
   margin-bottom: 16px;
   max-height: 220px;
   overflow-y: auto;
+  /* Without this, a flex item with overflow:auto is allowed to shrink below
+     its content size when the surrounding column runs out of room (e.g. in
+     a browser tab, where the address bar eats into the viewport height more
+     than in the installed/standalone PWA) - it then renders squashed down to
+     almost nothing instead of just scrolling. flex-shrink: 0 keeps it at its
+     real height and lets .tab-content scroll the page instead. */
+  flex-shrink: 0;
 }
 
 .splits.empty {
