@@ -1,6 +1,6 @@
 {
-  "name": "Shot Timer",
-  "short_name": "ShotTimer",
+  "name": "FORT Timer",
+  "short_name": "FORT Timer",
   "description": "Einfacher Schuss-Timer mit Mikrofon-Erkennung, im Stil des PACT Timers.",
   "theme_color": "#081e23",
   "background_color": "#081e23",
