@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { runSummary, useShotTimer } from "./useShotTimer";
-import { useAuth } from "./useAuth";
-import { useProfile } from "./useProfile";
-import { supabase } from "./supabaseClient";
 
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -53,74 +50,8 @@ function ConfirmDeleteButton({ onConfirm, label = "Löschen" }) {
 }
 
 export default function App() {
-  const auth = useAuth();
-  const profileHook = useProfile(auth.user);
-  const userIdRef = useRef(auth.user?.id ?? null);
-  const activeGearNameRef = useRef(null);
-  useEffect(() => {
-    userIdRef.current = auth.user?.id ?? null;
-  }, [auth.user]);
-  useEffect(() => {
-    activeGearNameRef.current = profileHook.profile?.active_gear_name ?? null;
-  }, [profileHook.profile]);
-
-  // Only the draw + first-shot time get synced - everything after that
-  // (re-holstering, follow-up shots) would only skew the trend. The gear
-  // name is a snapshot of whatever's currently marked "active" in the
-  // Konto tab, so the leaderboard can show it without exposing the private
-  // gear table to other users. Returns the new row's id (or null on
-  // failure) so a later correction on this same run can reach it again.
-  const syncRunToSupabase = useCallback(async (entry) => {
-    const userId = userIdRef.current;
-    if (!userId) return null;
-    const summary = runSummary(entry.shots);
-    if (summary.firstShotMs == null) return null; // nothing usable to log
-    try {
-      const { data, error } = await supabase
-        .from("training_runs")
-        .insert({
-          user_id: userId,
-          run_at: entry.date,
-          draw_ms: summary.drawMs,
-          first_shot_ms: summary.firstShotMs,
-          draw_to_shot_ms: summary.drawToShotMs,
-          shot_count: summary.shotCount,
-          raw_shots: entry.shots,
-          gear_name: activeGearNameRef.current,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data?.id ?? null;
-    } catch (err) {
-      console.warn("Supabase sync failed:", err);
-      return null;
-    }
-  }, []);
-
-  // Re-applies a correction (toggle Zug/Schuss, or delete a misdetected
-  // event like a slide-racking sound) made after the run was already
-  // synced, so the dashboard/leaderboard/CSV keep using the fixed data.
-  const updateRunInSupabase = useCallback(async (remoteId, entry) => {
-    const summary = runSummary(entry.shots);
-    try {
-      await supabase
-        .from("training_runs")
-        .update({
-          draw_ms: summary.drawMs,
-          first_shot_ms: summary.firstShotMs,
-          draw_to_shot_ms: summary.drawToShotMs,
-          shot_count: summary.shotCount,
-          raw_shots: entry.shots,
-        })
-        .eq("id", remoteId);
-    } catch (err) {
-      console.warn("Supabase update failed:", err);
-    }
-  }, []);
-
-  const t = useShotTimer({ onCommit: syncRunToSupabase, onUpdate: updateRunInSupabase });
-  const [tab, setTab] = useState("timer"); // timer | dashboard | leaderboard | account | settings | history
+  const t = useShotTimer();
+  const [tab, setTab] = useState("timer"); // timer | dashboard | settings | history
 
   const running = t.phase === "arming" || t.phase === "listening";
 
@@ -155,20 +86,11 @@ export default function App() {
 
       <div className="tab-content">
       {tab === "settings" ? (
-        <SettingsPanel t={t} auth={auth} />
+        <SettingsPanel t={t} />
       ) : tab === "history" ? (
         <HistoryPanel t={t} onBack={() => setTab("timer")} />
-      ) : tab === "account" ? (
-        <AccountPanel auth={auth} profileHook={profileHook} />
-      ) : tab === "leaderboard" ? (
-        <LeaderboardPanel auth={auth} onAccount={() => setTab("account")} />
       ) : tab === "dashboard" ? (
-        <DashboardPanel
-          auth={auth}
-          localHistory={t.history}
-          onDeleteLocal={t.deleteHistoryEntry}
-          onAccount={() => setTab("account")}
-        />
+        <DashboardPanel localHistory={t.history} onDeleteLocal={t.deleteHistoryEntry} />
       ) : (
         <>
           <div className="display">
@@ -245,8 +167,6 @@ function BottomNav({ tab, setTab }) {
   const items = [
     { key: "timer", label: "Timer", icon: IconTimer },
     { key: "dashboard", label: "Dashboard", icon: IconDashboard },
-    { key: "leaderboard", label: "Rangliste", icon: IconLeaderboard },
-    { key: "account", label: "Konto", icon: IconAccount },
     { key: "settings", label: "Einstellungen", icon: IconSettings },
   ];
   // History is a drill-in reached from the Timer tab, but the bar should
@@ -288,27 +208,6 @@ function IconDashboard() {
       <path d="M4 20V10" />
       <path d="M11 20V4" />
       <path d="M18 20v-7" />
-    </svg>
-  );
-}
-
-function IconLeaderboard() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
-      <path d="M7 5H4a3 3 0 0 0 3 4" />
-      <path d="M17 5h3a3 3 0 0 1-3 4" />
-    </svg>
-  );
-}
-
-function IconAccount() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c1.6-4 5-6 8-6s6.4 2 8 6" />
     </svg>
   );
 }
@@ -397,7 +296,6 @@ function Waveform({ waveform, active }) {
 
 const SETTINGS_SECTIONS = [
   { key: "timer", label: "Timer-Einstellungen" },
-  { key: "account", label: "Account" },
   { key: "about", label: "Über FORT Timer" },
   { key: "privacy", label: "Datenschutz" },
 ];
@@ -490,21 +388,7 @@ function TimerSettingsSection({ t }) {
   );
 }
 
-function AccountSettingsSection({ auth }) {
-  if (!auth?.user) {
-    return (
-      <div className="panel">
-        <div className="field-hint">
-          Nicht angemeldet - melde dich im Konto-Tab an, um Passwort/E-Mail zu ändern oder deinen
-          Account zu löschen.
-        </div>
-      </div>
-    );
-  }
-  return <AccountSecurityPanel auth={auth} />;
-}
-
-function SettingsPanel({ t, auth }) {
+function SettingsPanel({ t }) {
   const [section, setSection] = useState(null);
 
   if (section) {
@@ -512,7 +396,6 @@ function SettingsPanel({ t, auth }) {
       <>
         <SettingsBackButton onBack={() => setSection(null)} />
         {section === "timer" && <TimerSettingsSection t={t} />}
-        {section === "account" && <AccountSettingsSection auth={auth} />}
         {section === "about" && <AboutSection />}
         {section === "privacy" && <PrivacySection />}
       </>
@@ -528,144 +411,6 @@ function SettingsPanel({ t, auth }) {
         </button>
       ))}
     </div>
-  );
-}
-
-function AccountSecurityPanel({ auth }) {
-  const [newPassword, setNewPassword] = useState("");
-  const [pwBusy, setPwBusy] = useState(false);
-  const [pwMsg, setPwMsg] = useState(null);
-  const [pwError, setPwError] = useState(null);
-
-  const [newEmail, setNewEmail] = useState("");
-  const [emailBusy, setEmailBusy] = useState(false);
-  const [emailMsg, setEmailMsg] = useState(null);
-  const [emailError, setEmailError] = useState(null);
-
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState(null);
-
-  const submitPassword = async (e) => {
-    e.preventDefault();
-    setPwError(null);
-    setPwMsg(null);
-    if (newPassword.length < 6) {
-      setPwError("Mindestens 6 Zeichen.");
-      return;
-    }
-    setPwBusy(true);
-    const err = await auth.updatePassword(newPassword);
-    setPwBusy(false);
-    if (err) setPwError(err);
-    else {
-      setPwMsg("Passwort geändert.");
-      setNewPassword("");
-    }
-  };
-
-  const submitEmail = async (e) => {
-    e.preventDefault();
-    setEmailError(null);
-    setEmailMsg(null);
-    if (!newEmail.trim()) {
-      setEmailError("Bitte eine E-Mail-Adresse eingeben.");
-      return;
-    }
-    setEmailBusy(true);
-    const err = await auth.updateEmail(newEmail.trim());
-    setEmailBusy(false);
-    if (err) setEmailError(err);
-    else {
-      setEmailMsg("Bestätigungslink an die neue und/oder alte Adresse gesendet - bitte E-Mail prüfen.");
-      setNewEmail("");
-    }
-  };
-
-  const submitDelete = async () => {
-    setDeleteError(null);
-    setDeleteBusy(true);
-    const err = await auth.deleteAccount();
-    setDeleteBusy(false);
-    if (err) setDeleteError(err);
-  };
-
-  return (
-    <>
-      <div className="panel">
-        <h2>Passwort ändern</h2>
-        <form onSubmit={submitPassword}>
-          <div className="field">
-            <div className="field-label">
-              <span>Neues Passwort</span>
-            </div>
-            <input
-              className="text-input"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-          {pwError && <div className="field-hint account-error">{pwError}</div>}
-          {pwMsg && <div className="field-hint">{pwMsg}</div>}
-          <button className="sec-btn" type="submit" disabled={pwBusy} style={{ marginTop: 10 }}>
-            {pwBusy ? "..." : "Passwort speichern"}
-          </button>
-        </form>
-      </div>
-
-      <div className="panel">
-        <h2>E-Mail ändern</h2>
-        <div className="field-hint" style={{ marginBottom: 10 }}>
-          Aktuell: {auth.user.email}
-        </div>
-        <form onSubmit={submitEmail}>
-          <div className="field">
-            <div className="field-label">
-              <span>Neue E-Mail-Adresse</span>
-            </div>
-            <input
-              className="text-input"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              autoComplete="email"
-            />
-          </div>
-          {emailError && <div className="field-hint account-error">{emailError}</div>}
-          {emailMsg && <div className="field-hint">{emailMsg}</div>}
-          <button className="sec-btn" type="submit" disabled={emailBusy} style={{ marginTop: 10 }}>
-            {emailBusy ? "..." : "E-Mail speichern"}
-          </button>
-        </form>
-      </div>
-
-      <div className="panel">
-        <h2>Account löschen</h2>
-        <div className="field-hint" style={{ marginBottom: 10 }}>
-          Löscht dein Konto und alle Daten (Profil, Läufe, Equipment) unwiderruflich.
-        </div>
-        {deleteError && <div className="field-hint account-error">{deleteError}</div>}
-        {!confirmDelete ? (
-          <button className="sec-btn danger-btn" onClick={() => setConfirmDelete(true)}>
-            Account löschen
-          </button>
-        ) : (
-          <div className="delete-confirm-row">
-            <span className="field-hint">Wirklich unwiderruflich löschen?</span>
-            <div className="row-btns">
-              <button className="sec-btn" onClick={() => setConfirmDelete(false)} disabled={deleteBusy}>
-                Abbrechen
-              </button>
-              <button className="sec-btn danger-btn" onClick={submitDelete} disabled={deleteBusy}>
-                {deleteBusy ? "..." : "Ja, löschen"}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
   );
 }
 
@@ -726,53 +471,26 @@ function PrivacySection() {
     <div className="panel about-panel">
       <div className="about-body">
         <p>
-          FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
-          Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden
-          nirgends hin übertragen.
-        </p>
-        <p>
-          Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten über unseren
-          Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher), damit dein
-          Trainingsverlauf geräteübergreifend verfügbar ist:
+          FORT Timer läuft komplett lokal auf deinem Gerät. Es gibt kein Konto, keinen
+          Server-Login und keine Übertragung deiner Daten irgendwohin.
         </p>
 
-        <h2>Konto &amp; Anmeldung</h2>
+        <h2>Trainingsverlauf &amp; Einstellungen</h2>
         <p>
-          E-Mail-Adresse und (verschlüsseltes) Passwort, oder bei Anmeldung über Google die von
-          Google bereitgestellten Kontodaten (E-Mail, Name). Für Google-Anmeldung gilt zusätzlich
-          die Datenschutzerklärung von Google.
-        </p>
-
-        <h2>Profil &amp; Rangliste</h2>
-        <p>
-          Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
-          sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein
-          hinterlegter echter Name bleibt dagegen immer privat und wird niemandem angezeigt.
-          Equipment, das du als "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
-        </p>
-
-        <h2>Trainingsdaten</h2>
-        <p>
-          Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
-          Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
-          Wochen-Trend und Rangliste zu ermöglichen. Du kannst einzelne Läufe jederzeit löschen.
+          Dein Verlauf (Zug-/Schusszeiten in Millisekunden, keine Tonaufnahmen) und deine
+          Einstellungen werden ausschließlich lokal auf diesem Gerät gespeichert (Local Storage).
+          Sie verlassen dein Gerät nie. Löschst du die App oder ihre Daten, sind sie unwiderruflich
+          weg - es gibt keine Cloud-Kopie.
         </p>
 
         <h2>Mikrofonzugriff</h2>
         <p>
           Das Mikrofon wird nur benötigt, um Holster-Zug und Abzugsklick in Echtzeit lokal auf
-          deinem Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen -
-          weder lokal noch an unsere Server.
+          deinem Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen.
         </p>
 
         <h2>Kein Tracking</h2>
         <p>FORT Timer verwendet keine Analyse-, Tracking- oder Werbedienste Dritter.</p>
-
-        <h2>Deine Rechte</h2>
-        <p>
-          Du kannst deine Profildaten jederzeit im Konto-Tab ändern und deinen kompletten Account
-          inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
-        </p>
 
         <h2>Verantwortlicher &amp; Kontakt</h2>
         <p>
@@ -781,440 +499,6 @@ function PrivacySection() {
         </p>
       </div>
     </div>
-  );
-}
-
-function AccountPanel({ auth, profileHook }) {
-  const [mode, setMode] = useState("signin"); // signin | signup
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
-  const [info, setInfo] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [gear, setGear] = useState([]);
-  const [gearLoading, setGearLoading] = useState(false);
-  const [newGearName, setNewGearName] = useState("");
-
-  useEffect(() => {
-    if (!auth.user) return;
-    setGearLoading(true);
-    supabase
-      .from("gear")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error) setGear(data || []);
-        setGearLoading(false);
-      });
-  }, [auth.user]);
-
-  const addGear = async () => {
-    const name = newGearName.trim();
-    if (!name || !auth.user) return;
-    const { data, error } = await supabase
-      .from("gear")
-      .insert({ user_id: auth.user.id, name })
-      .select()
-      .single();
-    if (!error && data) {
-      setGear((prev) => [data, ...prev]);
-      setNewGearName("");
-    }
-  };
-
-  const deleteGear = async (id) => {
-    setGear((prev) => prev.filter((g) => g.id !== id));
-    await supabase.from("gear").delete().eq("id", id);
-  };
-
-  const activeGearName = profileHook?.profile?.active_gear_name ?? null;
-  const markActiveGear = async (name) => {
-    await profileHook?.setActiveGear(name);
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setInfo(null);
-    if (!email || !password) {
-      setError("Bitte E-Mail und Passwort eingeben.");
-      return;
-    }
-    setBusy(true);
-    const fn = mode === "signup" ? auth.signUp : auth.signIn;
-    const errMsg = await fn(email, password);
-    setBusy(false);
-    if (errMsg) {
-      setError(errMsg);
-    } else if (mode === "signup") {
-      setInfo("Fast geschafft - bitte bestätige deine E-Mail-Adresse über den Link, den wir dir geschickt haben.");
-    }
-  };
-
-  if (auth.authLoading) {
-    return (
-      <div className="panel">
-        <span className="field-hint">Lädt...</span>
-      </div>
-    );
-  }
-
-  if (!auth.user) {
-    return (
-      <>
-        <div className="panel">
-          <h2>{mode === "signup" ? "Konto erstellen" : "Anmelden"}</h2>
-
-          <div className="oauth-row">
-            <button className="oauth-btn" onClick={() => auth.signInWithGoogle()}>
-              <IconGoogle />
-              Mit Google
-            </button>
-          </div>
-          <div className="oauth-divider">
-            <span>oder mit E-Mail</span>
-          </div>
-
-          <form onSubmit={submit}>
-            <div className="field">
-              <div className="field-label">
-                <span>E-Mail</span>
-              </div>
-              <input
-                className="text-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-            </div>
-            <div className="field">
-              <div className="field-label">
-                <span>Passwort</span>
-              </div>
-              <input
-                className="text-input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              />
-            </div>
-            {error && <div className="field-hint account-error">{error}</div>}
-            {info && <div className="field-hint">{info}</div>}
-            <button className="main-btn start" type="submit" disabled={busy} style={{ marginTop: 14 }}>
-              {busy ? "..." : mode === "signup" ? "Konto erstellen" : "Anmelden"}
-            </button>
-          </form>
-          <button
-            className="link-row account-switch"
-            onClick={() => {
-              setMode(mode === "signup" ? "signin" : "signup");
-              setError(null);
-              setInfo(null);
-            }}
-          >
-            {mode === "signup" ? "Schon ein Konto? Anmelden" : "Noch kein Konto? Registrieren"}
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div className="panel">
-        <h2>Konto</h2>
-        <p className="account-email">{auth.user.email}</p>
-        <button className="sec-btn" onClick={auth.signOut}>
-          Abmelden
-        </button>
-      </div>
-
-      <ProfileSection user={auth.user} profileHook={profileHook} />
-
-      <div className="panel">
-        <h2>Equipment</h2>
-        <div className="field-hint" style={{ marginBottom: 12 }}>
-          Dein Trainingstagebuch - trage ein, mit welcher Ausrüstung du übst. Als
-          "aktuell" markiertes Equipment wird bei neuen Läufen mit gespeichert
-          und in der Rangliste angezeigt.
-        </div>
-        {gearLoading ? (
-          <span className="field-hint">Lädt...</span>
-        ) : gear.length === 0 ? (
-          <span className="field-hint">Noch kein Equipment eingetragen.</span>
-        ) : (
-          <div className="gear-list">
-            {gear.map((g) => (
-              <div className="gear-row" key={g.id}>
-                <button
-                  className={`gear-active-btn ${activeGearName === g.name ? "active" : ""}`}
-                  onClick={() => markActiveGear(g.name)}
-                  title="Als aktuell verwendet markieren"
-                >
-                  {activeGearName === g.name ? "★" : "☆"}
-                </button>
-                <span>{g.name}</span>
-                <button className="icon-btn gear-del" onClick={() => deleteGear(g.id)} aria-label="Löschen">
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="gear-add-row">
-          <input
-            className="text-input"
-            placeholder="z. B. Glock 19 + Kydex IWB"
-            value={newGearName}
-            onChange={(e) => setNewGearName(e.target.value)}
-          />
-          <button className="sec-btn" onClick={addGear}>
-            +
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function ProfileSection({ user, profileHook }) {
-  const { profile, privateData, saveProfile, saveFullName, uploadAvatar } = profileHook;
-  const [username, setUsername] = useState("");
-  const [gender, setGender] = useState("");
-  const [bio, setBio] = useState("");
-  const [instagram, setInstagram] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
-  const [fullName, setFullName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const [info, setInfo] = useState(null);
-  const fileRef = useRef(null);
-
-  useEffect(() => {
-    setUsername(profile?.username || "");
-    setGender(profile?.gender || "");
-    setBio(profile?.bio || "");
-    setInstagram(profile?.instagram || "");
-    setIsPublic(profile?.is_public !== false);
-  }, [profile]);
-
-  useEffect(() => {
-    setFullName(privateData?.full_name || "");
-  }, [privateData]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setInfo(null);
-    const uname = username.trim();
-    if (!uname) {
-      setError("Bitte einen Usernamen wählen.");
-      return;
-    }
-    setBusy(true);
-    const err1 = await saveProfile({
-      username: uname,
-      gender: gender || null,
-      bio: bio.trim() || null,
-      instagram: instagram.trim().replace(/^@/, "") || null,
-      isPublic,
-    });
-    const err2 = err1 ? null : await saveFullName(fullName.trim() || null);
-    setBusy(false);
-    if (err1) setError(err1);
-    else if (err2) setError(err2);
-    else setInfo("Profil gespeichert.");
-  };
-
-  const onPickAvatar = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError(null);
-    setBusy(true);
-    const { error } = await uploadAvatar(file);
-    setBusy(false);
-    if (error) setError(error);
-  };
-
-  return (
-    <div className="panel">
-      <h2>Profil</h2>
-      <div className="avatar-row">
-        <div className="avatar-preview">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="" />
-          ) : (
-            <span className="avatar-placeholder">{(profile?.username || user.email || "?")[0].toUpperCase()}</span>
-          )}
-        </div>
-        <button
-          className="sec-btn"
-          type="button"
-          disabled={!profile?.username || busy}
-          onClick={() => fileRef.current?.click()}
-        >
-          Profilbild ändern
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickAvatar} />
-      </div>
-      {!profile?.username && (
-        <div className="field-hint" style={{ marginBottom: 10 }}>
-          Wähle zuerst einen Usernamen, dann kannst du ein Profilbild hochladen.
-        </div>
-      )}
-
-      <BadgesRow user={user} />
-
-      <form onSubmit={submit}>
-        <div className="field">
-          <div className="field-label">
-            <span>Username (öffentlich, in der Rangliste sichtbar)</span>
-          </div>
-          <input
-            className="text-input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="z. B. fast_max"
-          />
-        </div>
-        <div className="field">
-          <div className="field-label">
-            <span>Name (privat, nur für dich)</span>
-          </div>
-          <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        </div>
-        <div className="field">
-          <div className="field-label">
-            <span>Geschlecht (in der Rangliste sichtbar)</span>
-          </div>
-          <div className="gender-row">
-            <button
-              type="button"
-              className={`gender-btn ${gender === "male" ? "active" : ""}`}
-              onClick={() => setGender("male")}
-            >
-              Männlich
-            </button>
-            <button
-              type="button"
-              className={`gender-btn ${gender === "female" ? "active" : ""}`}
-              onClick={() => setGender("female")}
-            >
-              Weiblich
-            </button>
-            <button
-              type="button"
-              className={`gender-btn ${gender === "" ? "active" : ""}`}
-              onClick={() => setGender("")}
-            >
-              Keine Angabe
-            </button>
-          </div>
-        </div>
-        <div className="toggle-row" style={{ marginTop: 18 }}>
-          <span>Profil öffentlich</span>
-          <Toggle on={isPublic} onClick={() => setIsPublic((v) => !v)} />
-        </div>
-        <div className="field-hint">
-          {isPublic
-            ? "Andere können Bio, Instagram, Stats und Abzeichen auf deinem Profil sehen. Username, Geschlecht, Equipment und Zeiten bleiben in der Rangliste selbst immer sichtbar."
-            : "Dein Profil zeigt anderen nur \"Dieses Profil ist privat\". Bio, Instagram, Stats und Abzeichen sind ausgeblendet. Username, Geschlecht, Equipment und Zeiten bleiben in der Rangliste selbst weiterhin sichtbar."}
-        </div>
-        <div className="field">
-          <div className="field-label">
-            <span>Bio</span>
-          </div>
-          <textarea
-            className="text-input"
-            rows={3}
-            maxLength={200}
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            placeholder="Kurz was über dich..."
-          />
-        </div>
-        <div className="field">
-          <div className="field-label">
-            <span>Instagram (optional)</span>
-          </div>
-          <input
-            className="text-input"
-            value={instagram}
-            onChange={(e) => setInstagram(e.target.value)}
-            placeholder="dein_username"
-          />
-        </div>
-        {error && <div className="field-hint account-error">{error}</div>}
-        {info && <div className="field-hint">{info}</div>}
-        <button className="main-btn start" type="submit" disabled={busy} style={{ marginTop: 14 }}>
-          {busy ? "..." : "Speichern"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-const BADGE_MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
-
-function BadgeChips({ badges }) {
-  if (!badges || badges.length === 0) return null;
-  return (
-    <div className="badges-row">
-      {badges.map((b, i) => {
-        const label =
-          b.period_type === "month"
-            ? new Date(b.period_start).toLocaleDateString("de-DE", { month: "long", year: "numeric" })
-            : `Woche vom ${fmtWeek(b.period_start)}`;
-        return (
-          <div className="badge-chip" key={i}>
-            <span className="badge-medal">{BADGE_MEDAL[b.rank]}</span>
-            <span className="badge-label">
-              Platz {b.rank} · {label}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function BadgesRow({ user }) {
-  const [badges, setBadges] = useState(null);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .rpc("my_badges", { p_user_id: user.id })
-      .then(({ data, error }) => {
-        if (!error) setBadges(data || []);
-      });
-  }, [user]);
-
-  return <BadgeChips badges={badges} />;
-}
-
-function IconGoogle() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18">
-      <path fill="#4285F4" d="M23.52 12.27c0-.82-.07-1.42-.22-2.05H12v3.72h6.6c-.13 1.06-.85 2.66-2.45 3.73l-.02.15 3.56 2.72.25.02c2.26-2.05 3.58-5.08 3.58-8.29Z" />
-      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.05 7.94-2.86l-3.78-2.9c-1.01.7-2.37 1.19-4.16 1.19-3.18 0-5.88-2.05-6.84-4.9l-.14.01-3.7 2.83-.05.13C3.25 21.3 7.28 24 12 24Z" />
-      <path fill="#FBBC05" d="M5.16 14.53a7.6 7.6 0 0 1-.41-2.44c0-.85.15-1.67.4-2.44l-.01-.16-3.75-2.87-.12.06A11.97 11.97 0 0 0 0 12.09c0 1.94.47 3.77 1.27 5.4l3.89-2.96Z" />
-      <path fill="#EA4335" d="M12 4.75c2.25 0 3.77.96 4.64 1.77l3.39-3.3C17.95 1.2 15.24 0 12 0 7.28 0 3.25 2.7 1.27 6.63l3.88 2.98c.97-2.85 3.67-4.86 6.85-4.86Z" />
-    </svg>
-  );
-}
-
-// Currently unused: Apple sign-in is temporarily hidden until the Apple
-// Developer OAuth setup is complete. Kept here for quick re-enable.
-// eslint-disable-next-line no-unused-vars
-function IconApple() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-      <path d="M16.36 1.5c.1 1.15-.34 2.28-1.05 3.1-.73.85-1.9 1.5-3.03 1.42-.13-1.1.4-2.26 1.08-3.03.75-.86 2-1.48 3-1.49ZM19.9 17.6c-.4.94-.87 1.83-1.5 2.66-.85 1.13-1.7 2.26-3.05 2.28-1.3.03-1.72-.77-3.22-.77-1.5 0-1.97.75-3.2.8-1.3.05-2.3-1.22-3.15-2.34-1.72-2.28-3.04-6.44-1.27-9.26.88-1.4 2.44-2.29 4.13-2.32 1.28-.02 2.48.85 3.26.85.77 0 2.24-1.05 3.78-.9.64.03 2.45.26 3.62 1.94-.09.06-2.16 1.24-2.14 3.7.03 2.94 2.6 3.92 2.63 3.93Z" />
-    </svg>
   );
 }
 
@@ -1282,51 +566,9 @@ function WeeklyChart({ weeks }) {
   );
 }
 
-function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
-  const [remoteRuns, setRemoteRuns] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const loadRemote = useCallback(() => {
-    if (!auth.user) {
-      setRemoteRuns(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    supabase
-      .from("training_runs")
-      .select("id, run_at, draw_ms, first_shot_ms, draw_to_shot_ms, shot_count, gear_name")
-      .order("run_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        else setRemoteRuns(data || []);
-        setLoading(false);
-      });
-  }, [auth.user]);
-
-  useEffect(() => {
-    loadRemote();
-  }, [loadRemote]);
-
-  const deleteRemoteRun = async (id) => {
-    setRemoteRuns((prev) => (prev || []).filter((r) => r.id !== id));
-    await supabase.from("training_runs").delete().eq("id", id);
-  };
-
+function DashboardPanel({ localHistory, onDeleteLocal }) {
   // Newest-first list for the itemized view/delete UI below the stats.
   const itemized = useMemo(() => {
-    if (auth.user) {
-      return (remoteRuns || []).map((r) => ({
-        id: r.id,
-        date: r.run_at,
-        drawMs: r.draw_ms,
-        firstShotMs: r.first_shot_ms,
-        drawToShotMs: r.draw_to_shot_ms,
-        shotCount: r.shot_count,
-        gearName: r.gear_name,
-      }));
-    }
     return localHistory
       .map((h) => {
         const s = runSummary(h.shots);
@@ -1337,15 +579,14 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
           firstShotMs: s.firstShotMs,
           drawToShotMs: s.drawToShotMs,
           shotCount: s.shotCount,
-          gearName: null, // gear tagging only exists for synced (signed-in) runs
         };
       })
       .filter((r) => r.firstShotMs != null);
-  }, [auth.user, remoteRuns, localHistory]);
+  }, [localHistory]);
 
   // Downloads the itemized runs as a CSV file, oldest first like a log.
   const exportCsv = () => {
-    const header = ["Datum", "Uhrzeit", "Draw (s)", "1. Schuss (s)", "Draw->Schuss (s)", "Schuesse", "Equipment"];
+    const header = ["Datum", "Uhrzeit", "Draw (s)", "1. Schuss (s)", "Draw->Schuss (s)", "Schuesse"];
     const rows = itemized
       .slice()
       .reverse()
@@ -1358,7 +599,6 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
           r.firstShotMs != null ? (r.firstShotMs / 1000).toFixed(2) : "",
           r.drawToShotMs != null ? (r.drawToShotMs / 1000).toFixed(2) : "",
           r.shotCount != null ? String(r.shotCount) : "",
-          r.gearName || "",
         ];
       });
     const csv = [header, ...rows]
@@ -1412,41 +652,28 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
       <div className="panel">
         <div className="panel-header-row">
           <h2>Auswertung</h2>
-          {!loading && stats.count > 0 && <span className="dash-count">{stats.count} Läufe</span>}
+          {stats.count > 0 && <span className="dash-count">{stats.count} Läufe</span>}
         </div>
-        {!auth.user && (
-          <div className="field-hint" style={{ marginBottom: 12 }}>
-            Nicht angemeldet - zeigt den lokalen Verlauf auf diesem Gerät.{" "}
-            <button className="inline-link" onClick={onAccount}>
-              Anmelden
-            </button>{" "}
-            für geräteübergreifende Auswertung.
-          </div>
-        )}
-        {loading && <span className="field-hint">Lädt...</span>}
-        {error && <div className="field-hint account-error">{error}</div>}
-        {!loading && stats.count === 0 ? (
+        {stats.count === 0 ? (
           <span className="field-hint">Noch keine auswertbaren Läufe (Draw + erster Schuss nötig).</span>
         ) : (
-          !loading && (
-            <>
-              <div className="dash-stats">
-                <div className="dash-stat">
-                  <span className="dash-stat-label">Ø Zug</span>
-                  <span className="dash-stat-val">{stats.avgDraw != null ? fmt(stats.avgDraw) : "–"}</span>
-                </div>
-                <div className="dash-stat">
-                  <span className="dash-stat-label">Ø 1. Schuss</span>
-                  <span className="dash-stat-val">
-                    {stats.avgFirstShot != null ? fmt(stats.avgFirstShot) : "–"}
-                  </span>
-                </div>
+          <>
+            <div className="dash-stats">
+              <div className="dash-stat">
+                <span className="dash-stat-label">Ø Zug</span>
+                <span className="dash-stat-val">{stats.avgDraw != null ? fmt(stats.avgDraw) : "–"}</span>
               </div>
-              {stats.avgDrawToShot != null && (
-                <div className="dash-delta">Ø Zug → Schuss: {fmt(stats.avgDrawToShot)}s</div>
-              )}
-            </>
-          )
+              <div className="dash-stat">
+                <span className="dash-stat-label">Ø 1. Schuss</span>
+                <span className="dash-stat-val">
+                  {stats.avgFirstShot != null ? fmt(stats.avgFirstShot) : "–"}
+                </span>
+              </div>
+            </div>
+            {stats.avgDrawToShot != null && (
+              <div className="dash-delta">Ø Zug → Schuss: {fmt(stats.avgDrawToShot)}s</div>
+            )}
+          </>
         )}
       </div>
 
@@ -1493,283 +720,12 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
                     )}
                   </span>
                 </div>
-                <ConfirmDeleteButton
-                  label="Lauf löschen"
-                  onConfirm={() => (auth.user ? deleteRemoteRun(r.id) : onDeleteLocal?.(r.id))}
-                />
+                <ConfirmDeleteButton label="Lauf löschen" onConfirm={() => onDeleteLocal?.(r.id)} />
               </div>
             ))}
           </div>
         </div>
       )}
-    </>
-  );
-}
-
-function GenderBadge({ gender }) {
-  if (gender !== "male" && gender !== "female") return null;
-  return <span className={`gender-badge ${gender}`}>{gender === "male" ? "♂" : "♀"}</span>;
-}
-
-function startOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function startOfNextMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
-}
-function startOfNextWeek(d = new Date()) {
-  const start = startOfWeek(d);
-  return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-}
-
-const LEADERBOARD_PERIODS = [
-  { key: "week", label: "Woche" },
-  { key: "month", label: "Monat" },
-  { key: "all", label: "Gesamt" },
-];
-
-function LeaderboardPanel({ auth, onAccount }) {
-  const [period, setPeriod] = useState("all");
-  const [rows, setRows] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [viewingUserId, setViewingUserId] = useState(null);
-
-  useEffect(() => {
-    if (!auth.user) {
-      setRows(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-
-    const query =
-      period === "all"
-        ? supabase.from("leaderboard").select("*").order("draw_to_shot_ms", { ascending: true }).limit(100)
-        : supabase
-            .rpc("leaderboard_period", {
-              p_start: (period === "week" ? startOfWeek() : startOfMonth()).toISOString(),
-              p_end: (period === "week" ? startOfNextWeek() : startOfNextMonth()).toISOString(),
-            })
-            .limit(100);
-
-    query.then(({ data, error }) => {
-      if (error) setError(error.message);
-      else setRows(data || []);
-      setLoading(false);
-    });
-  }, [auth.user, period]);
-
-  if (!auth.user) {
-    return (
-      <div className="panel">
-        <h2>Rangliste</h2>
-        <div className="field-hint">
-          Melde dich an, um die Rangliste aller FORT-Timer-Nutzer zu sehen und mit deinem eigenen Ergebnis
-          mitzumachen.{" "}
-          <button className="inline-link" onClick={onAccount}>
-            Anmelden
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (viewingUserId) {
-    return (
-      <PublicProfilePanel
-        userId={viewingUserId}
-        currentUserId={auth.user.id}
-        onBack={() => setViewingUserId(null)}
-      />
-    );
-  }
-
-  return (
-    <div className="panel">
-      <h2>Rangliste</h2>
-      <div className="field-hint" style={{ marginBottom: 12 }}>
-        Schnellster Lauf (Draw → 1. Schuss) pro Person. Nur sichtbar für angemeldete Nutzer.
-      </div>
-
-      <div className="period-switch">
-        {LEADERBOARD_PERIODS.map((p) => (
-          <button
-            key={p.key}
-            className={`period-btn ${period === p.key ? "active" : ""}`}
-            onClick={() => setPeriod(p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {loading && <span className="field-hint">Lädt...</span>}
-      {error && <div className="field-hint account-error">{error}</div>}
-      {!loading && rows && rows.length === 0 && (
-        <span className="field-hint">
-          {period === "all"
-            ? "Noch niemand in der Rangliste. Leg einen Usernamen im Konto-Tab fest und mach den ersten Lauf mit Draw + Schuss."
-            : "In diesem Zeitraum noch keine auswertbaren Läufe."}
-        </span>
-      )}
-      {!loading && rows && rows.length > 0 && (
-        <div className="leaderboard-list">
-          {rows.map((r, i) => (
-            <button
-              className={`leaderboard-row ${r.user_id === auth.user.id ? "is-me" : ""}`}
-              key={r.user_id}
-              onClick={() => setViewingUserId(r.user_id)}
-            >
-              <span className="lb-rank">{i + 1}</span>
-              <div className="lb-avatar">
-                {r.avatar_url ? (
-                  <img src={r.avatar_url} alt="" />
-                ) : (
-                  <span>{(r.username || "?")[0].toUpperCase()}</span>
-                )}
-              </div>
-              <div className="lb-name">
-                <span className="lb-username">
-                  {r.username}
-                  <GenderBadge gender={r.gender} />
-                </span>
-                {r.gear_name && <span className="lb-gear">{r.gear_name}</span>}
-                <span className="lb-time-line">
-                  {r.draw_ms != null ? (
-                    <>
-                      Zug {fmt(r.draw_ms)}s → Schuss {fmt(r.first_shot_ms)}s
-                      {r.draw_to_shot_ms != null && (
-                        <span className="lb-time-delta"> (Δ {fmt(r.draw_to_shot_ms)}s)</span>
-                      )}
-                    </>
-                  ) : (
-                    `1. Schuss ${fmt(r.first_shot_ms)}s`
-                  )}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PublicProfilePanel({ userId, currentUserId, onBack }) {
-  const [profile, setProfile] = useState(null);
-  const [badges, setBadges] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setNotFound(false);
-    setBadges(null);
-    supabase
-      .rpc("public_profile", { p_user_id: userId })
-      .then(({ data }) => {
-        if (!active) return;
-        const p = Array.isArray(data) ? data[0] : data;
-        setProfile(p || null);
-        setNotFound(!p);
-        setLoading(false);
-        const isOwn = currentUserId && userId === currentUserId;
-        if (p && (p.is_public || isOwn)) {
-          supabase.rpc("my_badges", { p_user_id: userId }).then(({ data: b }) => {
-            if (active) setBadges(b || []);
-          });
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [userId, currentUserId]);
-
-  const isOwn = currentUserId && userId === currentUserId;
-  const isPrivate = profile && profile.is_public === false && !isOwn;
-  const instaHandle = profile?.instagram ? profile.instagram.replace(/^@/, "").trim() : null;
-  const hasStats = profile?.run_count != null && Number(profile.run_count) > 0;
-
-  return (
-    <>
-      <SettingsBackButton onBack={onBack} label="Rangliste" />
-      <div className="panel">
-        {loading ? (
-          <span className="field-hint">Lädt...</span>
-        ) : notFound ? (
-          <span className="field-hint">Profil nicht gefunden.</span>
-        ) : (
-          <>
-            <div className="avatar-row">
-              <div className="avatar-preview">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" />
-                ) : (
-                  <span className="avatar-placeholder">{(profile.username || "?")[0].toUpperCase()}</span>
-                )}
-              </div>
-              <div>
-                <div className="pub-username">
-                  {profile.username}
-                  <GenderBadge gender={profile.gender} />
-                </div>
-                {profile.active_gear_name && <div className="pub-gear">{profile.active_gear_name}</div>}
-              </div>
-            </div>
-
-            {isPrivate ? (
-              <div className="field-hint" style={{ marginTop: 16 }}>
-                Dieses Profil ist privat.
-              </div>
-            ) : (
-              <>
-                {profile.bio && <p className="pub-bio">{profile.bio}</p>}
-
-                {instaHandle && (
-                  <a
-                    className="inline-link"
-                    href={`https://instagram.com/${instaHandle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    @{instaHandle} auf Instagram
-                  </a>
-                )}
-
-                {hasStats && (
-                  <>
-                    <div className="dash-stats" style={{ marginTop: 16 }}>
-                      <div className="dash-stat">
-                        <span className="dash-stat-label">Ø Zug</span>
-                        <span className="dash-stat-val">
-                          {profile.avg_draw_ms != null ? fmt(profile.avg_draw_ms) : "–"}
-                        </span>
-                      </div>
-                      <div className="dash-stat">
-                        <span className="dash-stat-label">Ø 1. Schuss</span>
-                        <span className="dash-stat-val">
-                          {profile.avg_first_shot_ms != null ? fmt(profile.avg_first_shot_ms) : "–"}
-                        </span>
-                      </div>
-                    </div>
-                    {profile.avg_draw_to_shot_ms != null && (
-                      <div className="dash-delta">Ø Zug → Schuss: {fmt(profile.avg_draw_to_shot_ms)}s</div>
-                    )}
-                    {profile.best_draw_to_shot_ms != null && (
-                      <div className="dash-delta">Beste Zeit: {fmt(profile.best_draw_to_shot_ms)}s</div>
-                    )}
-                    <div className="dash-delta">{profile.run_count} Läufe</div>
-                  </>
-                )}
-
-                <BadgeChips badges={badges} />
-              </>
-            )}
-          </>
-        )}
-      </div>
     </>
   );
 }

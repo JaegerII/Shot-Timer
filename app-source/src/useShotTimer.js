@@ -124,7 +124,7 @@ export function runSummary(shotsArr) {
   };
 }
 
-export function useShotTimer({ onCommit, onUpdate } = {}) {
+export function useShotTimer() {
   const [settings, setSettingsState] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
@@ -160,17 +160,7 @@ export function useShotTimer({ onCommit, onUpdate } = {}) {
   const phaseRef = useRef("idle");
   const settingsRef = useRef(settings);
   const shotsRef = useRef([]);
-  const onCommitRef = useRef(onCommit);
-  const onUpdateRef = useRef(onUpdate);
   const currentRunIdRef = useRef(null); // local history id of the run currently shown/reviewable on the Timer tab
-
-  useEffect(() => {
-    onCommitRef.current = onCommit;
-  }, [onCommit]);
-
-  useEffect(() => {
-    onUpdateRef.current = onUpdate;
-  }, [onUpdate]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -466,32 +456,18 @@ export function useShotTimer({ onCommit, onUpdate } = {}) {
     };
     setHistory((prev) => {
       // Raised from 20: local history now also feeds the week-over-week
-      // dashboard trend when signed out / offline, so keep more of it.
+      // dashboard trend.
       const next = [entry, ...prev].slice(0, 500);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
       return next;
     });
-    // onCommit (Supabase insert) may resolve with the new row's id - stash it
-    // on the history entry so a later correction (toggle/delete below) can
-    // reach the same row with an update instead of only fixing the local copy.
-    Promise.resolve(onCommitRef.current?.(entry))
-      .then((remoteId) => {
-        if (!remoteId) return;
-        setHistory((prev) => {
-          const next = prev.map((h) => (h.id === id ? { ...h, remoteId } : h));
-          localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-          return next;
-        });
-      })
-      .catch(() => {});
   }, []);
 
   // Shared by toggleEventKind/deleteShot below: applies an edit to the live
   // shots array, and - if this run was already committed (Stop was pressed)
-  // - carries the same correction into the saved history entry and, if it
-  // made it to Supabase, into that row too. Without this, correcting a
-  // misdetected event would only fix what's on screen right now, while the
-  // dashboard/leaderboard/CSV export kept using the uncorrected data.
+  // - carries the same correction into the saved history entry too. Without
+  // this, correcting a misdetected event would only fix what's on screen
+  // right now, while the dashboard/CSV export kept using the uncorrected data.
   const applyShotsEdit = useCallback((updater) => {
     setShots((prev) => {
       const next = updater(prev);
@@ -504,9 +480,6 @@ export function useShotTimer({ onCommit, onUpdate } = {}) {
           const nextHist = [...prevHist];
           nextHist[idx] = updatedEntry;
           localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHist));
-          if (updatedEntry.remoteId) {
-            Promise.resolve(onUpdateRef.current?.(updatedEntry.remoteId, updatedEntry)).catch(() => {});
-          }
           return nextHist;
         });
       }
