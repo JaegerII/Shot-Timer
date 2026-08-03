@@ -1397,7 +1397,16 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
                     })}
                   </span>
                   <span className="run-row-vals">
-                    {r.drawToShotMs != null ? `Draw→Schuss ${fmt(r.drawToShotMs)}s` : `1. Schuss ${fmt(r.firstShotMs)}s`}
+                    {r.drawMs != null ? (
+                      <>
+                        Zug {fmt(r.drawMs)}s → Schuss {fmt(r.firstShotMs)}s
+                        {r.drawToShotMs != null && (
+                          <span className="run-row-delta"> (Δ {fmt(r.drawToShotMs)}s)</span>
+                        )}
+                      </>
+                    ) : (
+                      `1. Schuss ${fmt(r.firstShotMs)}s`
+                    )}
                   </span>
                 </div>
                 <ConfirmDeleteButton
