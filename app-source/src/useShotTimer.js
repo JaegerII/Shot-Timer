@@ -97,6 +97,7 @@ export function useShotTimer({ onCommit } = {}) {
   const streamRef = useRef(null);
   const scriptNodeRef = useRef(null);
   const beepBufferRef = useRef(null);
+  const beepArrayBufferRef = useRef(null); // raw bytes, fetched once and reused across mic on/off cycles
   const wakeLockRef = useRef(null);
   const beepAtRef = useRef(0);
   const beepGuardUntilRef = useRef(0);
@@ -246,11 +247,17 @@ export function useShotTimer({ onCommit } = {}) {
       scriptNodeRef.current = scriptNode;
 
       // Load the real, recorded PACT beep sample. Falls back to a synthesized
-      // tone (below) if the fetch/decode fails for any reason.
+      // tone (below) if the fetch/decode fails for any reason. The raw bytes
+      // are cached so re-opening the mic on the next GO doesn't re-fetch over
+      // the network - only re-decode (fast, local) against the new context.
       try {
-        const res = await fetch(new URL("audio/beep.mp3", document.baseURI));
-        const arrBuf = await res.arrayBuffer();
-        beepBufferRef.current = await ctx.decodeAudioData(arrBuf);
+        if (!beepArrayBufferRef.current) {
+          const res = await fetch(new URL("audio/beep.mp3", document.baseURI));
+          beepArrayBufferRef.current = await res.arrayBuffer();
+        }
+        // decodeAudioData can detach/consume the buffer it's given, so decode
+        // a copy and keep the cached master intact for next time.
+        beepBufferRef.current = await ctx.decodeAudioData(beepArrayBufferRef.current.slice(0));
       } catch {
         beepBufferRef.current = null;
       }
@@ -267,6 +274,29 @@ export function useShotTimer({ onCommit } = {}) {
       return false;
     }
   }, [handleAudioProcess]);
+
+  // Stops the mic track (turns off the browser's mic indicator/hardware
+  // access) and closes the audio graph between runs, instead of leaving the
+  // mic hot for the whole time the app is open. ensureMic() re-acquires it
+  // fresh on the next GO - since permission was already granted once, the
+  // browser doesn't show the "allow microphone?" prompt again.
+  const releaseMic = useCallback(() => {
+    if (scriptNodeRef.current) {
+      scriptNodeRef.current.onaudioprocess = null;
+      scriptNodeRef.current.disconnect();
+      scriptNodeRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      if (ctx.state !== "closed") ctx.close().catch(() => {});
+    }
+    setMicReady(false);
+  }, []);
 
   // Plays the real, recorded PACT Club Timer beep (~2330Hz, ~0.3s - measured
   // from an actual recording, pre-normalized ~11dB louder for phone speaker
@@ -366,21 +396,23 @@ export function useShotTimer({ onCommit } = {}) {
   const reset = useCallback(() => {
     clearTimers();
     releaseWakeLock();
+    releaseMic();
     setPhase("idle");
     setShots([]);
     setLiveElapsed(0);
     setArmRemaining(null);
     setWaveform([]);
-  }, [clearTimers, releaseWakeLock]);
+  }, [clearTimers, releaseWakeLock, releaseMic]);
 
   // Manually ends the run so the splits stay on screen for review. Saves the
   // string to history right away; pressing GO afterwards starts a fresh one.
   const stop = useCallback(() => {
     clearTimers();
     releaseWakeLock();
+    releaseMic();
     commitToHistory(shotsRef.current);
     setPhase((p) => (p === "listening" || p === "arming" ? "done" : p));
-  }, [clearTimers, releaseWakeLock, commitToHistory]);
+  }, [clearTimers, releaseWakeLock, releaseMic, commitToHistory]);
 
   // GO always works: if a run is still going (Stop wasn't pressed), its shots
   // are saved to history first, then a fresh delay + beep starts immediately.
@@ -456,7 +488,8 @@ export function useShotTimer({ onCommit } = {}) {
   useEffect(() => () => {
     clearTimers();
     releaseWakeLock();
-  }, [clearTimers, releaseWakeLock]);
+    releaseMic();
+  }, [clearTimers, releaseWakeLock, releaseMic]);
 
   // Numbered split list - only counts events tagged as "shot". A tagged
   // "draw" is excluded from the count and from split timing, but the beep
