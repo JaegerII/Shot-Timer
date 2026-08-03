@@ -32,29 +32,39 @@ const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audi
 const NOISE_FLOOR_ALPHA = 0.05;
 const PROMINENCE_MULTIPLIER = 2.2;
 
-// Analysis of real recordings (Holster-Zug / Abzug-Klick / Waffe-Repetieren)
-// showed the draw/holster sound is a duller, lower-frequency noise (zero-
-// crossing rate ~0.11-0.20 in a short window around its peak) while an
-// actual trigger click is a sharp, bright metallic snap (~0.20-0.40). So a
-// candidate event that would be classified as a "shot" (i.e. not the very
-// first/draw event) additionally has to clear this brightness bar - this
-// rejects duller draw-like or ambient noise from being mistaken for a shot.
+// First analysis pass (single reference recordings of each sound in
+// isolation) suggested the draw/holster sound is duller/lower-frequency
+// (zero-crossing rate ~0.11-0.20) than an actual trigger click (~0.20-0.40).
+// A second pass on real draw-click-rack-holster sequences (same gear, live
+// timing) showed this doesn't hold in general - that draw's own brightness
+// varied 0.31-0.36, overlapping the click's 0.33-0.34 almost completely (a
+// snappier holster/retention makes for a brighter draw sound). So this gate
+// alone is not reliable and is kept only as a cheap extra layer, not the
+// main filter - see SHOT_VS_DRAW_MULTIPLIER below for what actually
+// separated draw from click consistently across those takes.
 // Note: this can NOT tell an actual click apart from racking/chambering the
 // gun, since both are similarly bright metallic snaps acoustically.
 const ZCR_MIN_FOR_SHOT = 0.19;
 const ZCR_WINDOW_HALF = 150; // samples each side of the buffer's peak (~3.4ms @44.1kHz)
+
+// What DID separate draw from click consistently across 3 live draw-click-
+// rack-holster takes: loudness. The draw peaked around 0.27-0.35, the click
+// 0.85-1.0+ - roughly 3x louder every time, regardless of exact timing. So a
+// "shot" candidate additionally has to be clearly louder than the draw that
+// started this run, not just brighter/prominent. Set well below the
+// observed ~3x ratio to leave margin for a real click that's just quieter
+// than usual (further away, muffled) without risking being rejected.
+// Unlike a settle window this doesn't care about timing at all, so a fast
+// draw-to-shot is unaffected - it only rejects sounds that are about as
+// quiet as the draw itself, which a genuine click essentially never is.
+const SHOT_VS_DRAW_MULTIPLIER = 1.3;
 
 // Earlier attempt: a fixed longer "settle window" after the draw (and after
 // each shot) to swallow extra draw-stroke noises / an assumed double-click.
 // Reverted - testing showed a real, fast trigger press produces exactly one
 // click (no second sound), and a fast draw-to-shot time can land well inside
 // any such fixed window, so it silently ate real shots. Back to a single
-// flat REFRACTORY_MS for every event, relying on the ZCR brightness gate
-// above (not on timing) to tell a genuine click apart from duller draw-noise
-// that happens to follow closely. Known limit, from the reference samples:
-// the draw's brightest moment (zcr ~0.20) and the quietest real click
-// (zcr ~0.20) sit right next to each other, so this can't be made perfect
-// from amplitude+brightness alone in every case.
+// flat REFRACTORY_MS for every event.
 
 // The built-in phone mic (without autoGainControl, which we disable so the
 // sensitivity slider stays meaningful) reads noticeably quieter than a
@@ -139,6 +149,7 @@ export function useShotTimer({ onCommit } = {}) {
   const lastEventAtRef = useRef(0);
   const eventCountRef = useRef(0); // events detected since the last beep, used for draw tagging
   const noiseFloorRef = useRef(0); // rolling ambient peak level, used to filter out incidental noise
+  const drawPeakRef = useRef(0); // peak amplitude of this run's draw event, 0 if none yet - see SHOT_VS_DRAW_MULTIPLIER
   const armTimeoutRef = useRef(null);
   const armIntervalRef = useRef(null);
   const parTimeoutRef = useRef(null);
@@ -257,11 +268,17 @@ export function useShotTimer({ onCommit } = {}) {
       isBrightEnough = zcr > ZCR_MIN_FOR_SHOT;
     }
 
-    if (peak > threshold && isProminent && isBrightEnough && !inRefractory) {
+    // A would-be shot also has to be clearly louder than this run's draw -
+    // see SHOT_VS_DRAW_MULTIPLIER above. No-op if there was no draw event
+    // (drawDetection off, or this candidate would be the draw itself).
+    const isLoudEnoughVsDraw = drawPeakRef.current === 0 || peak > drawPeakRef.current * SHOT_VS_DRAW_MULTIPLIER;
+
+    if (peak > threshold && isProminent && isBrightEnough && isLoudEnoughVsDraw && !inRefractory) {
       lastEventAtRef.current = now;
       const t = now - beepAtRef.current;
       eventCountRef.current += 1;
       const kind = wouldBeDraw ? "draw" : "shot";
+      if (kind === "draw") drawPeakRef.current = peak;
       setShots((prev) => [...prev, { t, kind }]);
       eventKindSinceSampleRef.current = kind;
     } else if (!inRefractory) {
@@ -523,6 +540,7 @@ export function useShotTimer({ onCommit } = {}) {
       lastEventAtRef.current = 0;
       eventCountRef.current = 0;
       noiseFloorRef.current = 0;
+      drawPeakRef.current = 0;
       waveformSampleAtRef.current = performance.now();
       maxPeakSinceSampleRef.current = 0;
       eventKindSinceSampleRef.current = null;
