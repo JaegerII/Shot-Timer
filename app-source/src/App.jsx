@@ -79,11 +79,9 @@ export default function App() {
 
       <div className="tab-content">
       {tab === "settings" ? (
-        <SettingsPanel t={t} onAbout={() => setTab("about")} />
+        <SettingsPanel t={t} />
       ) : tab === "history" ? (
         <HistoryPanel t={t} onBack={() => setTab("timer")} />
-      ) : tab === "about" ? (
-        <AboutPanel onBack={() => setTab("settings")} />
       ) : tab === "account" ? (
         <AccountPanel auth={auth} />
       ) : tab === "dashboard" ? (
@@ -152,6 +150,7 @@ export default function App() {
           <ParTimeQuickBar t={t} />
         </>
       )}
+      {tab !== "timer" && <Footer />}
       </div>
 
       <BottomNav tab={tab} setTab={setTab} />
@@ -166,9 +165,9 @@ function BottomNav({ tab, setTab }) {
     { key: "account", label: "Konto", icon: IconAccount },
     { key: "settings", label: "Einstellungen", icon: IconSettings },
   ];
-  // History/About are drill-ins reached from Timer/Settings, but the bar
-  // should still highlight their parent tab as active.
-  const activeKey = tab === "history" ? "timer" : tab === "about" ? "settings" : tab;
+  // History is a drill-in reached from the Timer tab, but the bar should
+  // still highlight "Timer" as active while looking at it.
+  const activeKey = tab === "history" ? "timer" : tab;
 
   return (
     <nav className="bottom-nav">
@@ -300,7 +299,7 @@ function Waveform({ waveform, active }) {
   );
 }
 
-function SettingsPanel({ t, onAbout }) {
+function SettingsPanel({ t }) {
   const s = t.settings;
   return (
     <>
@@ -366,11 +365,6 @@ function SettingsPanel({ t, onAbout }) {
         </div>
       </div>
 
-      <button className="link-row-btn" onClick={onAbout}>
-        Über FORT Timer
-      </button>
-
-      <Footer />
     </>
   );
 }
@@ -386,11 +380,12 @@ function Footer() {
   );
 }
 
-function AboutPanel({ onBack }) {
+function AboutPanel() {
   return (
     <>
       <div className="panel about-panel">
-        <h2 className="about-lede">Progress doesn't happen by accident.</h2>
+        <h2>FORT Shot Timer</h2>
+        <p className="about-lede">Progress doesn't happen by accident.</p>
         <p>
           FORT Timer was developed to make dry-fire practice structured, repeatable and
           measurable. Whether you're training at home or preparing for your next competition,
@@ -415,9 +410,6 @@ function AboutPanel({ onBack }) {
         </p>
       </div>
 
-      <button className="main-btn start" onClick={onBack}>
-        Done
-      </button>
     </>
   );
 }
@@ -804,6 +796,8 @@ function DashboardPanel({ auth, localHistory, onAccount }) {
           <WeeklyChart weeks={weekly} />
         </div>
       )}
+
+      <AboutPanel />
     </>
   );
 }
