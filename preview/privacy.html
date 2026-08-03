@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Datenschutzerklärung – FORT Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Chakra+Petch:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #081e24;
+        --bg-panel: #13282d;
+        --border: #22353a;
+        --text: #e1e0d7;
+        --text-dim: #7f8986;
+        --accent: #ed3421;
+        --font-brand: "Bebas Neue", "Arial Narrow", sans-serif;
+        --font-body: "Chakra Petch", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-weight: 300;
+        line-height: 1.65;
+      }
+      .wrap {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 40px 20px 60px;
+      }
+      h1 {
+        font-family: var(--font-brand);
+        font-weight: 400;
+        font-size: 30px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .updated {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-bottom: 32px;
+      }
+      h2 {
+        font-family: var(--font-brand);
+        font-weight: 400;
+        font-size: 16px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin: 30px 0 10px;
+      }
+      p { margin: 0 0 14px; font-size: 15px; }
+      a { color: var(--accent); }
+      .panel {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-top: 24px;
+      }
+      .back {
+        display: inline-block;
+        margin-top: 30px;
+        font-size: 13px;
+        color: var(--text-dim);
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Datenschutzerklärung</h1>
+      <div class="updated">Stand: August 2026</div>
+
+      <p>
+        FORT Timer ist eine kostenlose App für privates Dry-Fire-Training. Sie ist bewusst
+        datensparsam aufgebaut: Es gibt keine Server-Anbindung, kein Nutzerkonto und keine
+        Übertragung von Daten an FORT Performance oder Dritte.
+      </p>
+
+      <div class="panel">
+        <h2>Mikrofonzugriff</h2>
+        <p>
+          FORT Timer benötigt Zugriff auf das Mikrofon, um während eines Laufs den Holster-Zug
+          und den Klick des Abzugs akustisch zu erkennen und daraus deine Split-Zeiten zu
+          berechnen. Das Audiosignal wird ausschließlich in Echtzeit und lokal auf deinem Gerät
+          verarbeitet (über die Web-Audio-API deines Browsers bzw. Betriebssystems). Es wird
+          dabei keine Tonaufnahme gespeichert, aufgezeichnet oder irgendwohin übertragen.
+        </p>
+
+        <h2>Gespeicherte Daten</h2>
+        <p>
+          Deine Einstellungen sowie dein Trainingsverlauf (Zeiten, Splits) werden ausschließlich
+          lokal im Speicher deines Geräts abgelegt (Local Storage des Browsers bzw. der App).
+          Diese Daten verlassen dein Gerät nicht und sind nur für dich einsehbar. Du kannst den
+          Verlauf jederzeit in der App löschen.
+        </p>
+
+        <h2>Kein Tracking</h2>
+        <p>
+          FORT Timer verwendet keine Analyse-, Tracking-, Werbe- oder sonstigen Dienste Dritter.
+          Es werden keine Nutzungsdaten gesammelt oder ausgewertet.
+        </p>
+
+        <h2>Standortdaten</h2>
+        <p>FORT Timer fragt keine Standortdaten ab und benötigt sie nicht.</p>
+      </div>
+
+      <h2>Kontakt</h2>
+      <p>
+        Bei Fragen zu dieser Datenschutzerklärung erreichst du uns unter
+        <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
+      </p>
+
+      <a class="back" href="./index.html">← Zurück zu FORT Timer</a>
+    </div>
+  </body>
+</html>

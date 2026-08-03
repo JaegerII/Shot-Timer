@@ -50,7 +50,7 @@ function fmt(ms) {
 }
 
 // Older history entries stored shots as plain numbers; normalize to objects.
-function normalizeEvent(s) {
+export function normalizeEvent(s) {
   return typeof s === "number" ? { t: s, kind: "shot" } : s;
 }
 
@@ -63,7 +63,23 @@ function lastShotTime(shotsArr) {
   return list.length ? list[list.length - 1].t : 0;
 }
 
-export function useShotTimer() {
+// For the dashboard: only the draw and the *first* real shot count.
+// Everything after that (re-holstering, follow-up shots, re-cocking noise)
+// is intentionally ignored so it can't skew the trend.
+export function runSummary(shotsArr) {
+  const normalized = (shotsArr || []).map(normalizeEvent);
+  const draw = normalized.find((s) => s.kind === "draw") ?? null;
+  const firstShot = normalized.find((s) => s.kind === "shot") ?? null;
+  const shotCount = normalized.filter((s) => s.kind === "shot").length;
+  return {
+    drawMs: draw ? draw.t : null,
+    firstShotMs: firstShot ? firstShot.t : null,
+    drawToShotMs: draw && firstShot ? firstShot.t - draw.t : null,
+    shotCount,
+  };
+}
+
+export function useShotTimer({ onCommit } = {}) {
   const [settings, setSettingsState] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
@@ -96,6 +112,11 @@ export function useShotTimer() {
   const phaseRef = useRef("idle");
   const settingsRef = useRef(settings);
   const shotsRef = useRef([]);
+  const onCommitRef = useRef(onCommit);
+
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  }, [onCommit]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -320,10 +341,13 @@ export function useShotTimer() {
       shots: shotsArr,
     };
     setHistory((prev) => {
-      const next = [entry, ...prev].slice(0, 20);
+      // Raised from 20: local history now also feeds the week-over-week
+      // dashboard trend when signed out / offline, so keep more of it.
+      const next = [entry, ...prev].slice(0, 500);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
       return next;
     });
+    onCommitRef.current?.(entry);
   }, []);
 
   // Flip a detected event between "shot" and "draw" - for when the
