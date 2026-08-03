@@ -381,36 +381,52 @@ function Footer() {
 }
 
 function AboutPanel() {
+  const [open, setOpen] = useState(false);
   return (
-    <>
-      <div className="panel about-panel">
-        <h2>FORT Shot Timer</h2>
-        <p className="about-lede">Progress doesn't happen by accident.</p>
-        <p>
-          FORT Timer was developed to make dry-fire practice structured, repeatable and
-          measurable. Whether you're training at home or preparing for your next competition,
-          every repetition provides valuable feedback.
-        </p>
-        <p>
-          Using your phone's microphone, the app detects your draw and trigger press, helping
-          you monitor consistency and identify improvement over time.
-        </p>
-        <p className="about-closing">Train with purpose. Improve with every repetition.</p>
+    <div className="panel about-panel">
+      <button className="about-toggle" onClick={() => setOpen((v) => !v)}>
+        <span>About FORT Shot Timer</span>
+        <svg
+          className={`about-chevron ${open ? "open" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
 
-        <h2>The FORT Principles</h2>
-        <ul className="about-principles">
-          <li>Focus with intent.</li>
-          <li>Observe objectively.</li>
-          <li>Respond decisively.</li>
-          <li>Train relentlessly.</li>
-        </ul>
+      {open && (
+        <div className="about-body">
+          <p className="about-lede">Progress doesn't happen by accident.</p>
+          <p>
+            FORT Timer was developed to make dry-fire practice structured, repeatable and
+            measurable. Whether you're training at home or preparing for your next competition,
+            every repetition provides valuable feedback.
+          </p>
+          <p>
+            Using your phone's microphone, the app detects your draw and trigger press, helping
+            you monitor consistency and identify improvement over time.
+          </p>
+          <p className="about-closing">Train with purpose. Improve with every repetition.</p>
 
-        <p className="about-note">
-          Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
-        </p>
-      </div>
+          <h2>The FORT Principles</h2>
+          <ul className="about-principles">
+            <li>Focus with intent.</li>
+            <li>Observe objectively.</li>
+            <li>Respond decisively.</li>
+            <li>Train relentlessly.</li>
+          </ul>
 
-    </>
+          <p className="about-note">
+            Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
