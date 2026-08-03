@@ -32,6 +32,16 @@ export function useAuth() {
     await supabase.auth.signOut();
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
+  }, []);
+
   return {
     session,
     user: session?.user ?? null,
@@ -39,5 +49,7 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
+    signInWithGoogle,
+    signInWithApple,
   };
 }

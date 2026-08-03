@@ -45,8 +45,7 @@ export default function App() {
   }, []);
 
   const t = useShotTimer({ onCommit: syncRunToSupabase });
-  const [tab, setTab] = useState("timer"); // timer | settings | history | about | account | dashboard
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [tab, setTab] = useState("timer"); // timer | dashboard | account | settings | history | about
 
   const running = t.phase === "arming" || t.phase === "listening";
 
@@ -74,77 +73,23 @@ export default function App() {
           <img src="./icons/logo-header.png" alt="" className="header-logo" />
           <h1>FORT Timer</h1>
         </div>
-        <div className="menu-wrap">
-          <button
-            className={`icon-btn burger-btn ${menuOpen ? "open" : ""}`}
-            aria-label="Menü"
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-          {menuOpen && (
-            <>
-              <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
-              <div className="menu-dropdown">
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setTab("dashboard");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Dashboard
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setTab("account");
-                    setMenuOpen(false);
-                  }}
-                >
-                  {auth.user ? "Konto" : "Anmelden"}
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setTab("settings");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Einstellungen
-                </button>
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setTab("about");
-                    setMenuOpen(false);
-                  }}
-                >
-                  About
-                </button>
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       {t.micError && <div className="mic-warning">{t.micError}</div>}
 
+      <div className="tab-content">
       {tab === "settings" ? (
-        <SettingsPanel t={t} onBack={() => setTab("timer")} />
+        <SettingsPanel t={t} onAbout={() => setTab("about")} />
       ) : tab === "history" ? (
         <HistoryPanel t={t} onBack={() => setTab("timer")} />
       ) : tab === "about" ? (
-        <AboutPanel onBack={() => setTab("timer")} />
+        <AboutPanel onBack={() => setTab("settings")} />
       ) : tab === "account" ? (
-        <AccountPanel auth={auth} onBack={() => setTab("timer")} />
+        <AccountPanel auth={auth} />
       ) : tab === "dashboard" ? (
         <DashboardPanel
           auth={auth}
           localHistory={t.history}
-          onBack={() => setTab("timer")}
           onAccount={() => setTab("account")}
         />
       ) : (
@@ -207,20 +152,78 @@ export default function App() {
           <ParTimeQuickBar t={t} />
         </>
       )}
+      </div>
 
-      <Footer />
+      <BottomNav tab={tab} setTab={setTab} />
     </div>
   );
 }
 
-function Footer() {
+function BottomNav({ tab, setTab }) {
+  const items = [
+    { key: "timer", label: "Timer", icon: IconTimer },
+    { key: "dashboard", label: "Dashboard", icon: IconDashboard },
+    { key: "account", label: "Konto", icon: IconAccount },
+    { key: "settings", label: "Einstellungen", icon: IconSettings },
+  ];
+  // History/About are drill-ins reached from Timer/Settings, but the bar
+  // should still highlight their parent tab as active.
+  const activeKey = tab === "history" ? "timer" : tab === "about" ? "settings" : tab;
+
   return (
-    <div className="app-footer">
-      <img src="./icons/logo-header.png" alt="" className="footer-logo" />
-      <span className="footer-brand">FORT Performance</span>
-      <span className="footer-tagline">Built Through Repetition.</span>
-      <span className="footer-version">v{APP_VERSION}</span>
-    </div>
+    <nav className="bottom-nav">
+      <div className="bottom-nav-inner">
+        {items.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            className={`bottom-nav-item ${activeKey === key ? "active" : ""}`}
+            onClick={() => setTab(key)}
+          >
+            <Icon />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function IconTimer() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" />
+      <path d="M9 2h6" />
+      <path d="M19 5l-1.5 1.5" />
+    </svg>
+  );
+}
+
+function IconDashboard() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20V10" />
+      <path d="M11 20V4" />
+      <path d="M18 20v-7" />
+    </svg>
+  );
+}
+
+function IconAccount() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c1.6-4 5-6 8-6s6.4 2 8 6" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 13.5a7.4 7.4 0 0 0 0-3l1.9-1.5-2-3.4-2.2.9a7.3 7.3 0 0 0-2.6-1.5L14 2.5h-4l-.5 2.5a7.3 7.3 0 0 0-2.6 1.5l-2.2-.9-2 3.4L4.6 10.5a7.4 7.4 0 0 0 0 3l-1.9 1.5 2 3.4 2.2-.9c.76.66 1.64 1.17 2.6 1.5l.5 2.5h4l.5-2.5a7.3 7.3 0 0 0 2.6-1.5l2.2.9 2-3.4-1.9-1.5Z" />
+    </svg>
   );
 }
 
@@ -297,7 +300,7 @@ function Waveform({ waveform, active }) {
   );
 }
 
-function SettingsPanel({ t, onBack }) {
+function SettingsPanel({ t, onAbout }) {
   const s = t.settings;
   return (
     <>
@@ -363,10 +366,23 @@ function SettingsPanel({ t, onBack }) {
         </div>
       </div>
 
-      <button className="main-btn start" onClick={onBack}>
-        Fertig
+      <button className="link-row-btn" onClick={onAbout}>
+        Über FORT Timer
       </button>
+
+      <Footer />
     </>
+  );
+}
+
+function Footer() {
+  return (
+    <div className="app-footer">
+      <img src="./icons/logo-header.png" alt="" className="footer-logo" />
+      <span className="footer-brand">FORT Performance</span>
+      <span className="footer-tagline">Built Through Repetition.</span>
+      <span className="footer-version">v{APP_VERSION}</span>
+    </div>
   );
 }
 
@@ -406,7 +422,7 @@ function AboutPanel({ onBack }) {
   );
 }
 
-function AccountPanel({ auth, onBack }) {
+function AccountPanel({ auth }) {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -481,6 +497,21 @@ function AccountPanel({ auth, onBack }) {
       <>
         <div className="panel">
           <h2>{mode === "signup" ? "Konto erstellen" : "Anmelden"}</h2>
+
+          <div className="oauth-row">
+            <button className="oauth-btn" onClick={() => auth.signInWithGoogle()}>
+              <IconGoogle />
+              Mit Google
+            </button>
+            <button className="oauth-btn" onClick={() => auth.signInWithApple()}>
+              <IconApple />
+              Mit Apple
+            </button>
+          </div>
+          <div className="oauth-divider">
+            <span>oder mit E-Mail</span>
+          </div>
+
           <form onSubmit={submit}>
             <div className="field">
               <div className="field-label">
@@ -523,9 +554,6 @@ function AccountPanel({ auth, onBack }) {
             {mode === "signup" ? "Schon ein Konto? Anmelden" : "Noch kein Konto? Registrieren"}
           </button>
         </div>
-        <button className="main-btn start" onClick={onBack}>
-          Zurück
-        </button>
       </>
     );
   }
@@ -573,11 +601,26 @@ function AccountPanel({ auth, onBack }) {
           </button>
         </div>
       </div>
-
-      <button className="main-btn start" onClick={onBack}>
-        Zurück
-      </button>
     </>
+  );
+}
+
+function IconGoogle() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18">
+      <path fill="#4285F4" d="M23.52 12.27c0-.82-.07-1.42-.22-2.05H12v3.72h6.6c-.13 1.06-.85 2.66-2.45 3.73l-.02.15 3.56 2.72.25.02c2.26-2.05 3.58-5.08 3.58-8.29Z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.05 7.94-2.86l-3.78-2.9c-1.01.7-2.37 1.19-4.16 1.19-3.18 0-5.88-2.05-6.84-4.9l-.14.01-3.7 2.83-.05.13C3.25 21.3 7.28 24 12 24Z" />
+      <path fill="#FBBC05" d="M5.16 14.53a7.6 7.6 0 0 1-.41-2.44c0-.85.15-1.67.4-2.44l-.01-.16-3.75-2.87-.12.06A11.97 11.97 0 0 0 0 12.09c0 1.94.47 3.77 1.27 5.4l3.89-2.96Z" />
+      <path fill="#EA4335" d="M12 4.75c2.25 0 3.77.96 4.64 1.77l3.39-3.3C17.95 1.2 15.24 0 12 0 7.28 0 3.25 2.7 1.27 6.63l3.88 2.98c.97-2.85 3.67-4.86 6.85-4.86Z" />
+    </svg>
+  );
+}
+
+function IconApple() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+      <path d="M16.36 1.5c.1 1.15-.34 2.28-1.05 3.1-.73.85-1.9 1.5-3.03 1.42-.13-1.1.4-2.26 1.08-3.03.75-.86 2-1.48 3-1.49ZM19.9 17.6c-.4.94-.87 1.83-1.5 2.66-.85 1.13-1.7 2.26-3.05 2.28-1.3.03-1.72-.77-3.22-.77-1.5 0-1.97.75-3.2.8-1.3.05-2.3-1.22-3.15-2.34-1.72-2.28-3.04-6.44-1.27-9.26.88-1.4 2.44-2.29 4.13-2.32 1.28-.02 2.48.85 3.26.85.77 0 2.24-1.05 3.78-.9.64.03 2.45.26 3.62 1.94-.09.06-2.16 1.24-2.14 3.7.03 2.94 2.6 3.92 2.63 3.93Z" />
+    </svg>
   );
 }
 
@@ -645,7 +688,7 @@ function WeeklyChart({ weeks }) {
   );
 }
 
-function DashboardPanel({ auth, localHistory, onBack, onAccount }) {
+function DashboardPanel({ auth, localHistory, onAccount }) {
   const [remoteRuns, setRemoteRuns] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -761,10 +804,6 @@ function DashboardPanel({ auth, localHistory, onBack, onAccount }) {
           <WeeklyChart weeks={weekly} />
         </div>
       )}
-
-      <button className="main-btn start" onClick={onBack}>
-        Zurück
-      </button>
     </>
   );
 }
