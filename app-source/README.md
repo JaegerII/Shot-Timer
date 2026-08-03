@@ -20,7 +20,59 @@ offline – das ist wichtig, weil Apple reine "Website-Wrapper" ablehnen kann (G
 2. **Einen Mac mit Xcode** *oder* einen Cloud-Build-Dienst (siehe unten) – ich kann in dieser
    Sandbox kein Xcode ausführen, das native Bauen/Signieren muss auf echtem Apple-Tooling laufen.
 
-## Weg A: Eigener Mac
+## Schritt 1: Apple Developer Account (komplett im Browser, auch unter Windows)
+
+1. Falls noch nicht vorhanden: Apple-ID anlegen unter
+   [appleid.apple.com](https://appleid.apple.com) – geht ohne Apple-Gerät, nur E-Mail + Handynummer
+   nötig.
+2. Auf [developer.apple.com/programs/enroll](https://developer.apple.com/programs/enroll) mit
+   dieser Apple-ID anmelden.
+3. Als **Individual** registrieren (nicht "Organization" – das braucht eine D-U-N-S-Nummer und
+   dauert deutlich länger). Individual reicht für eine App unter deinem eigenen Namen völlig aus.
+4. Persönliche Daten + Zahlungsdaten eingeben, 99 $/Jahr bezahlen.
+5. Apple prüft deine Identität – meist 24–48 Std., manchmal ruft Apple zur Verifizierung an.
+6. Nach Freischaltung hast du Zugriff auf [App Store Connect](https://appstoreconnect.apple.com)
+   (App-Verwaltung, Metadaten, Einreichung) und das Developer-Portal (Zertifikate, App-IDs).
+
+Das Ganze läuft komplett über den Browser – dafür brauchst du keinen Mac, nur diesen einen Schritt
+kann ausschließlich du machen (Identität/Zahlung).
+
+## Schritt 2: Bauen ohne eigenen Mac – Codemagic
+
+Da du keinen Mac hast, ist [Codemagic](https://codemagic.io) der einfachste Weg: eine
+Cloud-CI, die auf echten Mac-Rechnern baut, signiert und direkt zu App Store Connect hochlädt.
+Kostenloses Kontingent reicht für den Anfang.
+
+Ich habe eine `codemagic.yaml` ins Repo-Root gelegt, die den Workflow für dieses Projekt schon
+vorkonfiguriert (Pfad zu `app-source`, Build-Kommando, automatisches Signieren, Upload zu
+TestFlight). Ich konnte sie hier nicht selbst testen (kein Zugriff auf Codemagic/Xcode aus meiner
+Sandbox) – rechne damit, dass du in der Codemagic-UI noch Kleinigkeiten nachjustieren musst,
+besonders beim Signing.
+
+So richtest du es ein:
+
+1. Auf [codemagic.io](https://codemagic.io) mit deinem GitHub-Account einloggen.
+2. Repo `JaegerII/Shot-Timer` hinzufügen – Codemagic erkennt die `codemagic.yaml` automatisch.
+3. **App Store Connect API Key** erstellen (nötig für automatisches Signieren + Upload):
+   - In App Store Connect → **Nutzer und Zugriff → Integrationen → App Store Connect API**
+   - Neuen Key generieren (Rolle: "App Manager" reicht), die `.p8`-Datei herunterladen
+     (nur einmal möglich!), dir Key-ID und Issuer-ID notieren
+   - In Codemagic unter **Teams → Integrations → Apple Developer Portal** diese drei Werte
+     eintragen ("App Store Connect API key") – Codemagic verwaltet damit automatisch
+     Zertifikate/Profile, du musst nichts manuell exportieren
+4. In den Codemagic-App-Einstellungen unter **Environment variables** die Gruppe
+   `app_store_credentials` anlegen (Name muss zur `codemagic.yaml` passen) und dort verknüpfen,
+   falls Codemagic das nicht automatisch aus Schritt 3 übernimmt.
+5. In App Store Connect einmal die App **manuell anlegen** (Bundle-ID
+   `com.fortperformance.forttimer`, Name "FORT Timer") – Codemagic kann nur zu einer bereits
+   existierenden App hochladen, nicht selbst eine anlegen.
+6. Build in Codemagic starten. Bei Erfolg landet die Version automatisch in **TestFlight** (in der
+   Konfiguration ist `submit_to_app_store: false` gesetzt – so kannst du erst in Ruhe selbst testen,
+   bevor du in App Store Connect manuell auf "Zur Prüfung einreichen" klickst).
+
+Bei jeder Web-Änderung an der App reicht danach: Push aufs Repo → Codemagic-Build erneut starten.
+
+## Weg A (alternativ): Eigener Mac
 
 ```bash
 git clone https://github.com/JaegerII/Shot-Timer.git
@@ -44,18 +96,8 @@ In Xcode:
 Kein CocoaPods nötig – das Projekt nutzt Swift Package Manager, Xcode löst die Abhängigkeiten
 beim Öffnen automatisch auf.
 
-## Weg B: Ohne eigenen Mac (Cloud-Build)
-
-Dienste wie [Codemagic](https://codemagic.io) (kostenloses Kontingent) oder Ionic Appflow bauen
-iOS-Apps in der Cloud direkt aus dem GitHub-Repo und können auch signieren/hochladen. Grober
-Ablauf bei Codemagic:
-
-1. Mit GitHub einloggen, Repo `JaegerII/Shot-Timer` verbinden
-2. iOS-Workflow anlegen, als Projektpfad `app-source` und Xcode-Workspace
-   `ios/App/App.xcodeproj` angeben, Build-Schritt `npm install && npm run build:ios` voranstellen
-3. Apple-Developer-Zugangsdaten/Zertifikat in Codemagic hinterlegen (dafür brauchst du trotzdem
-   das Developer-Programm-Konto aus Schritt 1 oben)
-4. Codemagic kann automatisch signieren und direkt zu App Store Connect / TestFlight hochladen
+(Alternative zu Codemagic: [Ionic Appflow](https://ionic.io/appflow) funktioniert sehr ähnlich,
+falls Codemagic aus irgendeinem Grund nicht passt.)
 
 ## Nach jeder Web-Änderung
 
