@@ -66,6 +66,7 @@ export default function App() {
       : "0.00";
 
   return (
+    <div className="app-shell">
     <div className="app">
       <div className="topo-bg-layer" style={{ backgroundImage: `url(${TOPO_BG_URL})` }} />
       <div className="header">
@@ -152,8 +153,9 @@ export default function App() {
       )}
       {tab !== "timer" && <Footer />}
       </div>
+    </div>
 
-      <BottomNav tab={tab} setTab={setTab} />
+    <BottomNav tab={tab} setTab={setTab} />
     </div>
   );
 }

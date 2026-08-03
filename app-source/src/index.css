@@ -39,11 +39,23 @@ body {
   user-select: none;
 }
 
+/* Full device width, so the bottom nav (a sibling of .app, not nested in
+   its max-width column) can span edge-to-edge even on screens wider than
+   the app's own 480px content column - no more "boxed" look. */
+.app-shell {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .app {
   position: relative;
   max-width: 480px;
+  width: 100%;
   margin: 0 auto;
-  height: 100dvh;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
