@@ -124,7 +124,7 @@ export function runSummary(shotsArr) {
   };
 }
 
-export function useShotTimer({ onCommit } = {}) {
+export function useShotTimer({ onCommit, onUpdate } = {}) {
   const [settings, setSettingsState] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
@@ -161,10 +161,16 @@ export function useShotTimer({ onCommit } = {}) {
   const settingsRef = useRef(settings);
   const shotsRef = useRef([]);
   const onCommitRef = useRef(onCommit);
+  const onUpdateRef = useRef(onUpdate);
+  const currentRunIdRef = useRef(null); // local history id of the run currently shown/reviewable on the Timer tab
 
   useEffect(() => {
     onCommitRef.current = onCommit;
   }, [onCommit]);
+
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -450,8 +456,10 @@ export function useShotTimer({ onCommit } = {}) {
 
   const commitToHistory = useCallback((shotsArr) => {
     if (!shotsArr || shotsArr.length === 0) return;
+    const id = Date.now();
+    currentRunIdRef.current = id;
     const entry = {
-      id: Date.now(),
+      id,
       date: new Date().toISOString(),
       total: lastShotTime(shotsArr),
       shots: shotsArr,
@@ -463,20 +471,73 @@ export function useShotTimer({ onCommit } = {}) {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
       return next;
     });
-    onCommitRef.current?.(entry);
+    // onCommit (Supabase insert) may resolve with the new row's id - stash it
+    // on the history entry so a later correction (toggle/delete below) can
+    // reach the same row with an update instead of only fixing the local copy.
+    Promise.resolve(onCommitRef.current?.(entry))
+      .then((remoteId) => {
+        if (!remoteId) return;
+        setHistory((prev) => {
+          const next = prev.map((h) => (h.id === id ? { ...h, remoteId } : h));
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Shared by toggleEventKind/deleteShot below: applies an edit to the live
+  // shots array, and - if this run was already committed (Stop was pressed)
+  // - carries the same correction into the saved history entry and, if it
+  // made it to Supabase, into that row too. Without this, correcting a
+  // misdetected event would only fix what's on screen right now, while the
+  // dashboard/leaderboard/CSV export kept using the uncorrected data.
+  const applyShotsEdit = useCallback((updater) => {
+    setShots((prev) => {
+      const next = updater(prev);
+      const runId = currentRunIdRef.current;
+      if (runId != null) {
+        setHistory((prevHist) => {
+          const idx = prevHist.findIndex((h) => h.id === runId);
+          if (idx === -1) return prevHist;
+          const updatedEntry = { ...prevHist[idx], shots: next, total: lastShotTime(next) };
+          const nextHist = [...prevHist];
+          nextHist[idx] = updatedEntry;
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHist));
+          if (updatedEntry.remoteId) {
+            Promise.resolve(onUpdateRef.current?.(updatedEntry.remoteId, updatedEntry)).catch(() => {});
+          }
+          return nextHist;
+        });
+      }
+      return next;
+    });
   }, []);
 
   // Flip a detected event between "shot" and "draw" - for when the
   // auto-tagging (first sound = draw) guessed wrong.
-  const toggleEventKind = useCallback((index) => {
-    setShots((prev) =>
-      prev.map((s, i) => {
-        if (i !== index) return s;
-        const ev = normalizeEvent(s);
-        return { t: ev.t, kind: ev.kind === "draw" ? "shot" : "draw" };
-      })
-    );
-  }, []);
+  const toggleEventKind = useCallback(
+    (index) => {
+      applyShotsEdit((prev) =>
+        prev.map((s, i) => {
+          if (i !== index) return s;
+          const ev = normalizeEvent(s);
+          return { t: ev.t, kind: ev.kind === "draw" ? "shot" : "draw" };
+        })
+      );
+    },
+    [applyShotsEdit]
+  );
+
+  // Removes a single misdetected event (e.g. racking the slide picked up as
+  // a shot) from the current run - see applyShotsEdit for why this also
+  // updates the already-saved run, not just the on-screen list.
+  const deleteShot = useCallback(
+    (index) => {
+      applyShotsEdit((prev) => prev.filter((_, i) => i !== index));
+    },
+    [applyShotsEdit]
+  );
 
   // Discards the current run entirely (no history entry) and goes back to idle.
   const reset = useCallback(() => {
@@ -488,6 +549,7 @@ export function useShotTimer({ onCommit } = {}) {
     setLiveElapsed(0);
     setArmRemaining(null);
     setWaveform([]);
+    currentRunIdRef.current = null;
   }, [clearTimers, releaseWakeLock, releaseMic]);
 
   // Manually ends the run so the splits stay on screen for review. Saves the
@@ -519,6 +581,7 @@ export function useShotTimer({ onCommit } = {}) {
     setShots([]);
     setLiveElapsed(0);
     setWaveform([]);
+    currentRunIdRef.current = null;
     setPhase("arming");
 
     const s = settingsRef.current;
@@ -615,6 +678,7 @@ export function useShotTimer({ onCommit } = {}) {
     stop,
     reset,
     toggleEventKind,
+    deleteShot,
     fmt,
     normalizeEvent,
   };

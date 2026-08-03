@@ -68,29 +68,58 @@ export default function App() {
   // (re-holstering, follow-up shots) would only skew the trend. The gear
   // name is a snapshot of whatever's currently marked "active" in the
   // Konto tab, so the leaderboard can show it without exposing the private
-  // gear table to other users.
+  // gear table to other users. Returns the new row's id (or null on
+  // failure) so a later correction on this same run can reach it again.
   const syncRunToSupabase = useCallback(async (entry) => {
     const userId = userIdRef.current;
-    if (!userId) return;
+    if (!userId) return null;
     const summary = runSummary(entry.shots);
-    if (summary.firstShotMs == null) return; // nothing usable to log
+    if (summary.firstShotMs == null) return null; // nothing usable to log
     try {
-      await supabase.from("training_runs").insert({
-        user_id: userId,
-        run_at: entry.date,
-        draw_ms: summary.drawMs,
-        first_shot_ms: summary.firstShotMs,
-        draw_to_shot_ms: summary.drawToShotMs,
-        shot_count: summary.shotCount,
-        raw_shots: entry.shots,
-        gear_name: activeGearNameRef.current,
-      });
+      const { data, error } = await supabase
+        .from("training_runs")
+        .insert({
+          user_id: userId,
+          run_at: entry.date,
+          draw_ms: summary.drawMs,
+          first_shot_ms: summary.firstShotMs,
+          draw_to_shot_ms: summary.drawToShotMs,
+          shot_count: summary.shotCount,
+          raw_shots: entry.shots,
+          gear_name: activeGearNameRef.current,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data?.id ?? null;
     } catch (err) {
       console.warn("Supabase sync failed:", err);
+      return null;
     }
   }, []);
 
-  const t = useShotTimer({ onCommit: syncRunToSupabase });
+  // Re-applies a correction (toggle Zug/Schuss, or delete a misdetected
+  // event like a slide-racking sound) made after the run was already
+  // synced, so the dashboard/leaderboard/CSV keep using the fixed data.
+  const updateRunInSupabase = useCallback(async (remoteId, entry) => {
+    const summary = runSummary(entry.shots);
+    try {
+      await supabase
+        .from("training_runs")
+        .update({
+          draw_ms: summary.drawMs,
+          first_shot_ms: summary.firstShotMs,
+          draw_to_shot_ms: summary.drawToShotMs,
+          shot_count: summary.shotCount,
+          raw_shots: entry.shots,
+        })
+        .eq("id", remoteId);
+    } catch (err) {
+      console.warn("Supabase update failed:", err);
+    }
+  }, []);
+
+  const t = useShotTimer({ onCommit: syncRunToSupabase, onUpdate: updateRunInSupabase });
   const [tab, setTab] = useState("timer"); // timer | dashboard | leaderboard | account | settings | history
 
   const running = t.phase === "arming" || t.phase === "listening";
@@ -162,20 +191,23 @@ export default function App() {
               <span>Noch keine Splits</span>
             ) : (
               t.splitsView.map((r) => (
-                <div
-                  key={r.idx}
-                  className={`split-row ${r.kind === "draw" ? "is-draw" : ""}`}
-                  onClick={() => t.toggleEventKind(r.idx)}
-                >
-                  <span className="idx">{r.kind === "draw" ? "Zug" : r.label}</span>
-                  <span className="abs-val">{fmt(r.abs)}</span>
-                  <span className="split-val">{r.split == null ? "antippen" : `+${fmt(r.split)}`}</span>
+                <div key={r.idx} className={`split-row ${r.kind === "draw" ? "is-draw" : ""}`}>
+                  <button
+                    type="button"
+                    className="split-row-main"
+                    onClick={() => t.toggleEventKind(r.idx)}
+                  >
+                    <span className="idx">{r.kind === "draw" ? "Zug" : r.label}</span>
+                    <span className="abs-val">{fmt(r.abs)}</span>
+                    <span className="split-val">{r.split == null ? "antippen" : `+${fmt(r.split)}`}</span>
+                  </button>
+                  <ConfirmDeleteButton label="Event löschen" onConfirm={() => t.deleteShot(r.idx)} />
                 </div>
               ))
             )}
           </div>
           {t.splitsView.length > 0 && (
-            <div className="splits-hint">Antippen um Zug/Schuss umzuschalten</div>
+            <div className="splits-hint">Antippen um Zug/Schuss umzuschalten, × um ein Event zu löschen</div>
           )}
 
           {running ? (
