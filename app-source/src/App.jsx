@@ -953,6 +953,7 @@ function ProfileSection({ user, profileHook }) {
   const [gender, setGender] = useState("");
   const [bio, setBio] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -964,6 +965,7 @@ function ProfileSection({ user, profileHook }) {
     setGender(profile?.gender || "");
     setBio(profile?.bio || "");
     setInstagram(profile?.instagram || "");
+    setIsPublic(profile?.is_public !== false);
   }, [profile]);
 
   useEffect(() => {
@@ -985,6 +987,7 @@ function ProfileSection({ user, profileHook }) {
       gender: gender || null,
       bio: bio.trim() || null,
       instagram: instagram.trim().replace(/^@/, "") || null,
+      isPublic,
     });
     const err2 = err1 ? null : await saveFullName(fullName.trim() || null);
     setBusy(false);
@@ -1079,9 +1082,18 @@ function ProfileSection({ user, profileHook }) {
             </button>
           </div>
         </div>
+        <div className="toggle-row" style={{ marginTop: 18 }}>
+          <span>Profil öffentlich</span>
+          <Toggle on={isPublic} onClick={() => setIsPublic((v) => !v)} />
+        </div>
+        <div className="field-hint">
+          {isPublic
+            ? "Andere können Bio, Instagram, Stats und Abzeichen auf deinem Profil sehen. Username, Geschlecht, Equipment und Zeiten bleiben in der Rangliste selbst immer sichtbar."
+            : "Dein Profil zeigt anderen nur \"Dieses Profil ist privat\". Bio, Instagram, Stats und Abzeichen sind ausgeblendet. Username, Geschlecht, Equipment und Zeiten bleiben in der Rangliste selbst weiterhin sichtbar."}
+        </div>
         <div className="field">
           <div className="field-label">
-            <span>Bio (öffentlich, in der Rangliste sichtbar)</span>
+            <span>Bio</span>
           </div>
           <textarea
             className="text-input"
@@ -1094,7 +1106,7 @@ function ProfileSection({ user, profileHook }) {
         </div>
         <div className="field">
           <div className="field-label">
-            <span>Instagram (öffentlich, optional)</span>
+            <span>Instagram (optional)</span>
           </div>
           <input
             className="text-input"
@@ -1532,7 +1544,13 @@ function LeaderboardPanel({ auth, onAccount }) {
   }
 
   if (viewingUserId) {
-    return <PublicProfilePanel userId={viewingUserId} onBack={() => setViewingUserId(null)} />;
+    return (
+      <PublicProfilePanel
+        userId={viewingUserId}
+        currentUserId={auth.user.id}
+        onBack={() => setViewingUserId(null)}
+      />
+    );
   }
 
   return (
@@ -1606,7 +1624,7 @@ function LeaderboardPanel({ auth, onAccount }) {
   );
 }
 
-function PublicProfilePanel({ userId, onBack }) {
+function PublicProfilePanel({ userId, currentUserId, onBack }) {
   const [profile, setProfile] = useState(null);
   const [badges, setBadges] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1616,22 +1634,31 @@ function PublicProfilePanel({ userId, onBack }) {
     let active = true;
     setLoading(true);
     setNotFound(false);
-    Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.rpc("my_badges", { p_user_id: userId }),
-    ]).then(([{ data: p }, { data: b }]) => {
-      if (!active) return;
-      setProfile(p || null);
-      setNotFound(!p);
-      setBadges(b || []);
-      setLoading(false);
-    });
+    setBadges(null);
+    supabase
+      .rpc("public_profile", { p_user_id: userId })
+      .then(({ data }) => {
+        if (!active) return;
+        const p = Array.isArray(data) ? data[0] : data;
+        setProfile(p || null);
+        setNotFound(!p);
+        setLoading(false);
+        const isOwn = currentUserId && userId === currentUserId;
+        if (p && (p.is_public || isOwn)) {
+          supabase.rpc("my_badges", { p_user_id: userId }).then(({ data: b }) => {
+            if (active) setBadges(b || []);
+          });
+        }
+      });
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, currentUserId]);
 
+  const isOwn = currentUserId && userId === currentUserId;
+  const isPrivate = profile && profile.is_public === false && !isOwn;
   const instaHandle = profile?.instagram ? profile.instagram.replace(/^@/, "").trim() : null;
+  const hasStats = profile?.run_count != null && Number(profile.run_count) > 0;
 
   return (
     <>
@@ -1660,20 +1687,54 @@ function PublicProfilePanel({ userId, onBack }) {
               </div>
             </div>
 
-            {profile.bio && <p className="pub-bio">{profile.bio}</p>}
+            {isPrivate ? (
+              <div className="field-hint" style={{ marginTop: 16 }}>
+                Dieses Profil ist privat.
+              </div>
+            ) : (
+              <>
+                {profile.bio && <p className="pub-bio">{profile.bio}</p>}
 
-            {instaHandle && (
-              <a
-                className="inline-link"
-                href={`https://instagram.com/${instaHandle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                @{instaHandle} auf Instagram
-              </a>
+                {instaHandle && (
+                  <a
+                    className="inline-link"
+                    href={`https://instagram.com/${instaHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    @{instaHandle} auf Instagram
+                  </a>
+                )}
+
+                {hasStats && (
+                  <>
+                    <div className="dash-stats" style={{ marginTop: 16 }}>
+                      <div className="dash-stat">
+                        <span className="dash-stat-label">Ø Zug</span>
+                        <span className="dash-stat-val">
+                          {profile.avg_draw_ms != null ? fmt(profile.avg_draw_ms) : "–"}
+                        </span>
+                      </div>
+                      <div className="dash-stat">
+                        <span className="dash-stat-label">Ø 1. Schuss</span>
+                        <span className="dash-stat-val">
+                          {profile.avg_first_shot_ms != null ? fmt(profile.avg_first_shot_ms) : "–"}
+                        </span>
+                      </div>
+                    </div>
+                    {profile.avg_draw_to_shot_ms != null && (
+                      <div className="dash-delta">Ø Zug → Schuss: {fmt(profile.avg_draw_to_shot_ms)}s</div>
+                    )}
+                    {profile.best_draw_to_shot_ms != null && (
+                      <div className="dash-delta">Beste Zeit: {fmt(profile.best_draw_to_shot_ms)}s</div>
+                    )}
+                    <div className="dash-delta">{profile.run_count} Läufe</div>
+                  </>
+                )}
+
+                <BadgeChips badges={badges} />
+              </>
             )}
-
-            <BadgeChips badges={badges} />
           </>
         )}
       </div>

@@ -42,7 +42,7 @@ export function useProfile(user) {
   // include username) so an upsert never trips the "username not null"
   // constraint on first insert.
   const saveProfile = useCallback(
-    async ({ username, gender, bio, instagram }) => {
+    async ({ username, gender, bio, instagram, isPublic }) => {
       if (!user) return "Nicht angemeldet.";
       const { error } = await supabase.from("profiles").upsert({
         id: user.id,
@@ -50,6 +50,7 @@ export function useProfile(user) {
         gender: gender || null,
         bio: bio || null,
         instagram: instagram || null,
+        is_public: isPublic !== false,
       });
       if (error) return friendlyError(error.message);
       await load();
