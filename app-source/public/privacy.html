@@ -81,9 +81,11 @@
       <div class="updated">Stand: August 2026</div>
 
       <p>
-        FORT Timer ist eine kostenlose App für privates Dry-Fire-Training. Sie ist bewusst
-        datensparsam aufgebaut: Es gibt keine Server-Anbindung, kein Nutzerkonto und keine
-        Übertragung von Daten an FORT Performance oder Dritte.
+        FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
+        Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden nirgends
+        hin übertragen. Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten
+        über unseren Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher),
+        damit dein Trainingsverlauf geräteübergreifend verfügbar ist.
       </p>
 
       <div class="panel">
@@ -93,30 +95,54 @@
           und den Klick des Abzugs akustisch zu erkennen und daraus deine Split-Zeiten zu
           berechnen. Das Audiosignal wird ausschließlich in Echtzeit und lokal auf deinem Gerät
           verarbeitet (über die Web-Audio-API deines Browsers bzw. Betriebssystems). Es wird
-          dabei keine Tonaufnahme gespeichert, aufgezeichnet oder irgendwohin übertragen.
+          dabei keine Tonaufnahme gespeichert, aufgezeichnet oder irgendwohin übertragen - auch
+          nicht an unsere Server.
         </p>
 
-        <h2>Gespeicherte Daten</h2>
+        <h2>Konto &amp; Anmeldung</h2>
         <p>
-          Deine Einstellungen sowie dein Trainingsverlauf (Zeiten, Splits) werden ausschließlich
-          lokal im Speicher deines Geräts abgelegt (Local Storage des Browsers bzw. der App).
-          Diese Daten verlassen dein Gerät nicht und sind nur für dich einsehbar. Du kannst den
-          Verlauf jederzeit in der App löschen.
+          Bei Erstellung eines Kontos verarbeiten wir deine E-Mail-Adresse und ein verschlüsseltes
+          Passwort, oder bei Anmeldung über Google die von Google bereitgestellten Kontodaten
+          (E-Mail, Name). Für die Google-Anmeldung gilt zusätzlich die Datenschutzerklärung von
+          Google.
+        </p>
+
+        <h2>Profil &amp; Rangliste</h2>
+        <p>
+          Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
+          sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein
+          hinterlegter echter Name bleibt dagegen immer privat und wird niemandem angezeigt.
+          Equipment, das du als "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
+        </p>
+
+        <h2>Trainingsdaten</h2>
+        <p>
+          Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
+          Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
+          Wochen-Trend und Rangliste zu ermöglichen. Ohne Konto bleiben diese Daten ausschließlich
+          lokal im Speicher deines Geräts. Du kannst einzelne Läufe jederzeit löschen.
         </p>
 
         <h2>Kein Tracking</h2>
         <p>
           FORT Timer verwendet keine Analyse-, Tracking-, Werbe- oder sonstigen Dienste Dritter.
-          Es werden keine Nutzungsdaten gesammelt oder ausgewertet.
         </p>
 
         <h2>Standortdaten</h2>
         <p>FORT Timer fragt keine Standortdaten ab und benötigt sie nicht.</p>
+
+        <h2>Deine Rechte</h2>
+        <p>
+          Du kannst deine Profildaten jederzeit in der App ändern und deinen kompletten Account
+          inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
+        </p>
       </div>
 
-      <h2>Kontakt</h2>
+      <h2>Verantwortlicher &amp; Kontakt</h2>
       <p>
-        Bei Fragen zu dieser Datenschutzerklärung erreichst du uns unter
+        Anbieter dieser App: wemacon, Impressum unter
+        <a href="https://www.wemacon.de/impressum" target="_blank" rel="noopener noreferrer">www.wemacon.de/impressum</a>.
+        Fragen zum Datenschutz erreichst du uns unter
         <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
       </p>
 

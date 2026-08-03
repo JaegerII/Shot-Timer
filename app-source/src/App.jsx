@@ -16,6 +16,42 @@ function Toggle({ on, onClick }) {
   return <button className={`toggle ${on ? "on" : ""}`} onClick={onClick} />;
 }
 
+// × button that asks "wirklich löschen?" inline before actually deleting -
+// used anywhere a run/entry can be removed, so a stray tap can't wipe data.
+function ConfirmDeleteButton({ onConfirm, label = "Löschen" }) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <button
+        className="icon-btn gear-del"
+        aria-label={label}
+        onClick={() => setConfirming(true)}
+      >
+        ×
+      </button>
+    );
+  }
+
+  return (
+    <div className="confirm-inline">
+      <span>Wirklich löschen?</span>
+      <button
+        className="confirm-inline-btn"
+        onClick={() => {
+          onConfirm();
+          setConfirming(false);
+        }}
+      >
+        Ja
+      </button>
+      <button className="confirm-inline-btn" onClick={() => setConfirming(false)}>
+        Nein
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const auth = useAuth();
   const profileHook = useProfile(auth.user);
@@ -331,6 +367,7 @@ function SettingsPanel({ t, auth }) {
   const s = t.settings;
   return (
     <>
+      <div className="settings-section-label">Timer-Einstellungen</div>
       <div className="panel">
         <h2>Erkennung</h2>
         <div className="field">
@@ -393,7 +430,33 @@ function SettingsPanel({ t, auth }) {
         </div>
       </div>
 
+      <div className="settings-section-label">Account</div>
+      <div className="panel">
+        <h2>Rechtliches</h2>
+        {auth?.user ? (
+          <p className="account-email">{auth.user.email}</p>
+        ) : (
+          <div className="field-hint" style={{ marginBottom: 10 }}>
+            Nicht angemeldet - melde dich im Konto-Tab an, um Passwort/E-Mail zu ändern oder deinen
+            Account zu löschen.
+          </div>
+        )}
+        <a
+          className="inline-link"
+          href="https://www.wemacon.de/impressum"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Impressum: www.wemacon.de/impressum
+        </a>
+      </div>
       {auth?.user && <AccountSecurityPanel auth={auth} />}
+
+      <div className="settings-section-label">Über FORT Timer</div>
+      <AboutPanel />
+
+      <div className="settings-section-label">Datenschutz</div>
+      <PrivacyPanel />
     </>
   );
 }
@@ -547,12 +610,12 @@ function Footer() {
   );
 }
 
-function AboutPanel() {
-  const [open, setOpen] = useState(false);
+function CollapsiblePanel({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="panel about-panel">
       <button className="about-toggle" onClick={() => setOpen((v) => !v)}>
-        <span>About FORT Shot Timer</span>
+        <span>{title}</span>
         <svg
           className={`about-chevron ${open ? "open" : ""}`}
           viewBox="0 0 24 24"
@@ -566,34 +629,104 @@ function AboutPanel() {
         </svg>
       </button>
 
-      {open && (
-        <div className="about-body">
-          <p className="about-lede">Progress doesn't happen by accident.</p>
-          <p>
-            FORT Timer was developed to make dry-fire practice structured, repeatable and
-            measurable. Whether you're training at home or preparing for your next competition,
-            every repetition provides valuable feedback.
-          </p>
-          <p>
-            Using your phone's microphone, the app detects your draw and trigger press, helping
-            you monitor consistency and identify improvement over time.
-          </p>
-          <p className="about-closing">Train with purpose. Improve with every repetition.</p>
-
-          <h2>The FORT Principles</h2>
-          <ul className="about-principles">
-            <li>Focus with intent.</li>
-            <li>Observe objectively.</li>
-            <li>Respond decisively.</li>
-            <li>Train relentlessly.</li>
-          </ul>
-
-          <p className="about-note">
-            Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
-          </p>
-        </div>
-      )}
+      {open && <div className="about-body">{children}</div>}
     </div>
+  );
+}
+
+function AboutPanel() {
+  return (
+    <CollapsiblePanel title="About FORT Shot Timer">
+      <p className="about-lede">Progress doesn't happen by accident.</p>
+      <p>
+        FORT Timer was developed to make dry-fire practice structured, repeatable and measurable.
+        Whether you're training at home or preparing for your next competition, every repetition
+        provides valuable feedback.
+      </p>
+      <p>
+        Using your phone's microphone, the app detects your draw and trigger press, helping you
+        monitor consistency and identify improvement over time.
+      </p>
+      <p className="about-closing">Train with purpose. Improve with every repetition.</p>
+
+      <h2>The FORT Principles</h2>
+      <ul className="about-principles">
+        <li>Focus with intent.</li>
+        <li>Observe objectively.</li>
+        <li>Respond decisively.</li>
+        <li>Train relentlessly.</li>
+      </ul>
+
+      <p className="about-note">
+        Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
+      </p>
+    </CollapsiblePanel>
+  );
+}
+
+function PrivacyPanel() {
+  return (
+    <CollapsiblePanel title="Datenschutz">
+      <p>
+        FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
+        Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden nirgends
+        hin übertragen.
+      </p>
+      <p>
+        Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten über unseren
+        Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher), damit dein
+        Trainingsverlauf geräteübergreifend verfügbar ist:
+      </p>
+
+      <h2>Konto &amp; Anmeldung</h2>
+      <p>
+        E-Mail-Adresse und (verschlüsseltes) Passwort, oder bei Anmeldung über Google die von
+        Google bereitgestellten Kontodaten (E-Mail, Name). Für Google-Anmeldung gilt zusätzlich die
+        Datenschutzerklärung von Google.
+      </p>
+
+      <h2>Profil &amp; Rangliste</h2>
+      <p>
+        Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
+        sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein hinterlegter
+        echter Name bleibt dagegen immer privat und wird niemandem angezeigt. Equipment, das du als
+        "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
+      </p>
+
+      <h2>Trainingsdaten</h2>
+      <p>
+        Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
+        Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
+        Wochen-Trend und Rangliste zu ermöglichen. Du kannst einzelne Läufe jederzeit löschen.
+      </p>
+
+      <h2>Mikrofonzugriff</h2>
+      <p>
+        Das Mikrofon wird nur benötigt, um Holster-Zug und Abzugsklick in Echtzeit lokal auf deinem
+        Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen - weder
+        lokal noch an unsere Server.
+      </p>
+
+      <h2>Kein Tracking</h2>
+      <p>
+        FORT Timer verwendet keine Analyse-, Tracking- oder Werbedienste Dritter.
+      </p>
+
+      <h2>Deine Rechte</h2>
+      <p>
+        Du kannst deine Profildaten jederzeit im Konto-Tab ändern und deinen kompletten Account
+        inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
+      </p>
+
+      <h2>Verantwortlicher &amp; Kontakt</h2>
+      <p>
+        Anbieter dieser App: wemacon, Impressum unter{" "}
+        <a href="https://www.wemacon.de/impressum" target="_blank" rel="noopener noreferrer">
+          www.wemacon.de/impressum
+        </a>
+        . Fragen zum Datenschutz: <a href="mailto:waxmeils@gmail.com">waxmeils@gmail.com</a>.
+      </p>
+    </CollapsiblePanel>
   );
 }
 
@@ -867,6 +1000,8 @@ function ProfileSection({ user, profileHook }) {
         </div>
       )}
 
+      <BadgesRow user={user} />
+
       <form onSubmit={submit}>
         <div className="field">
           <div className="field-label">
@@ -919,6 +1054,42 @@ function ProfileSection({ user, profileHook }) {
           {busy ? "..." : "Speichern"}
         </button>
       </form>
+    </div>
+  );
+}
+
+const BADGE_MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+function BadgesRow({ user }) {
+  const [badges, setBadges] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .rpc("my_badges", { p_user_id: user.id })
+      .then(({ data, error }) => {
+        if (!error) setBadges(data || []);
+      });
+  }, [user]);
+
+  if (!badges || badges.length === 0) return null;
+
+  return (
+    <div className="badges-row">
+      {badges.map((b, i) => {
+        const label =
+          b.period_type === "month"
+            ? new Date(b.period_start).toLocaleDateString("de-DE", { month: "long", year: "numeric" })
+            : `Woche vom ${fmtWeek(b.period_start)}`;
+        return (
+          <div className="badge-chip" key={i}>
+            <span className="badge-medal">{BADGE_MEDAL[b.rank]}</span>
+            <span className="badge-label">
+              Platz {b.rank} · {label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1160,20 +1331,15 @@ function DashboardPanel({ auth, localHistory, onDeleteLocal, onAccount }) {
                     {r.drawToShotMs != null ? `Draw→Schuss ${fmt(r.drawToShotMs)}s` : `1. Schuss ${fmt(r.firstShotMs)}s`}
                   </span>
                 </div>
-                <button
-                  className="icon-btn gear-del"
-                  aria-label="Lauf löschen"
-                  onClick={() => (auth.user ? deleteRemoteRun(r.id) : onDeleteLocal?.(r.id))}
-                >
-                  ×
-                </button>
+                <ConfirmDeleteButton
+                  label="Lauf löschen"
+                  onConfirm={() => (auth.user ? deleteRemoteRun(r.id) : onDeleteLocal?.(r.id))}
+                />
               </div>
             ))}
           </div>
         </div>
       )}
-
-      <AboutPanel />
     </>
   );
 }
@@ -1183,7 +1349,25 @@ function GenderBadge({ gender }) {
   return <span className={`gender-badge ${gender}`}>{gender === "male" ? "♂" : "♀"}</span>;
 }
 
+function startOfMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function startOfNextMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+}
+function startOfNextWeek(d = new Date()) {
+  const start = startOfWeek(d);
+  return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+}
+
+const LEADERBOARD_PERIODS = [
+  { key: "week", label: "Woche" },
+  { key: "month", label: "Monat" },
+  { key: "all", label: "Gesamt" },
+];
+
 function LeaderboardPanel({ auth, onAccount }) {
+  const [period, setPeriod] = useState("all");
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1195,17 +1379,23 @@ function LeaderboardPanel({ auth, onAccount }) {
     }
     setLoading(true);
     setError(null);
-    supabase
-      .from("leaderboard")
-      .select("*")
-      .order("draw_to_shot_ms", { ascending: true })
-      .limit(100)
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        else setRows(data || []);
-        setLoading(false);
-      });
-  }, [auth.user]);
+
+    const query =
+      period === "all"
+        ? supabase.from("leaderboard").select("*").order("draw_to_shot_ms", { ascending: true }).limit(100)
+        : supabase
+            .rpc("leaderboard_period", {
+              p_start: (period === "week" ? startOfWeek() : startOfMonth()).toISOString(),
+              p_end: (period === "week" ? startOfNextWeek() : startOfNextMonth()).toISOString(),
+            })
+            .limit(100);
+
+    query.then(({ data, error }) => {
+      if (error) setError(error.message);
+      else setRows(data || []);
+      setLoading(false);
+    });
+  }, [auth.user, period]);
 
   if (!auth.user) {
     return (
@@ -1226,14 +1416,28 @@ function LeaderboardPanel({ auth, onAccount }) {
     <div className="panel">
       <h2>Rangliste</h2>
       <div className="field-hint" style={{ marginBottom: 12 }}>
-        Schnellster Lauf (Draw → 1. Schuss) pro Person. Nur sichtbar für angemeldete Nutzer, ohne Klarnamen.
+        Schnellster Lauf (Draw → 1. Schuss) pro Person. Nur sichtbar für angemeldete Nutzer.
       </div>
+
+      <div className="period-switch">
+        {LEADERBOARD_PERIODS.map((p) => (
+          <button
+            key={p.key}
+            className={`period-btn ${period === p.key ? "active" : ""}`}
+            onClick={() => setPeriod(p.key)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       {loading && <span className="field-hint">Lädt...</span>}
       {error && <div className="field-hint account-error">{error}</div>}
       {!loading && rows && rows.length === 0 && (
         <span className="field-hint">
-          Noch niemand in der Rangliste. Leg einen Usernamen im Konto-Tab fest und mach den ersten Lauf mit Draw +
-          Schuss.
+          {period === "all"
+            ? "Noch niemand in der Rangliste. Leg einen Usernamen im Konto-Tab fest und mach den ersten Lauf mit Draw + Schuss."
+            : "In diesem Zeitraum noch keine auswertbaren Läufe."}
         </span>
       )}
       {!loading && rows && rows.length > 0 && (
@@ -1283,22 +1487,18 @@ function HistoryPanel({ t, onBack }) {
           return (
             <div className="history-item" key={h.id}>
               <div className="h-top">
-                <span className="h-time">{fmt(h.total)}</span>
-                <span className="h-date">
-                  {new Date(h.date).toLocaleString("de-DE", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                <button
-                  className="icon-btn gear-del"
-                  aria-label="Lauf löschen"
-                  onClick={() => t.deleteHistoryEntry(h.id)}
-                >
-                  ×
-                </button>
+                <div className="h-top-main">
+                  <span className="h-time">{fmt(h.total)}</span>
+                  <span className="h-date">
+                    {new Date(h.date).toLocaleString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <ConfirmDeleteButton label="Lauf löschen" onConfirm={() => t.deleteHistoryEntry(h.id)} />
               </div>
               <div className="h-splits">
                 {events
