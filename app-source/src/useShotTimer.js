@@ -21,6 +21,17 @@ const SAMPLE_INTERVAL_MS = 70;
 const REFRACTORY_MS = 180; // min gap between two detected events
 const SCRIPT_BUFFER_SIZE = 1024; // ~23ms resolution @44.1kHz - runs on the audio thread
 
+// A real trigger/dry-fire click is dramatically louder than whatever else is
+// happening around it (movement, fabric, ambient room noise). Rather than
+// relying only on a single fixed threshold, we also track a rolling ambient
+// noise floor and require a peak to clearly stand out above it before it
+// counts as an event - this is what filters out incidental noise that still
+// happens to clear the fixed threshold. NOISE_FLOOR_ALPHA controls how fast
+// the floor adapts (small = slow/stable), PROMINENCE_MULTIPLIER is how many
+// times louder than ambient a peak must be.
+const NOISE_FLOOR_ALPHA = 0.05;
+const PROMINENCE_MULTIPLIER = 2.2;
+
 // The built-in phone mic (without autoGainControl, which we disable so the
 // sensitivity slider stays meaningful) reads noticeably quieter than a
 // Bluetooth headset mic, which usually applies its own hardware-level AGC we
@@ -103,6 +114,7 @@ export function useShotTimer({ onCommit } = {}) {
   const beepGuardUntilRef = useRef(0);
   const lastEventAtRef = useRef(0);
   const eventCountRef = useRef(0); // events detected since the last beep, used for draw tagging
+  const noiseFloorRef = useRef(0); // rolling ambient peak level, used to filter out incidental noise
   const armTimeoutRef = useRef(null);
   const armIntervalRef = useRef(null);
   const parTimeoutRef = useRef(null);
@@ -190,8 +202,14 @@ export function useShotTimer({ onCommit } = {}) {
     if (peak > maxPeakSinceSampleRef.current) maxPeakSinceSampleRef.current = peak;
 
     const threshold = (6 + (100 - settingsRef.current.sensitivity) * 0.7) / 127; // 0-1 scale
+    const inRefractory = now - lastEventAtRef.current <= REFRACTORY_MS;
+    // A real click must both clear the fixed floor AND stand out clearly
+    // above whatever ambient/incidental noise level we've been seeing - this
+    // is what rejects a quieter stray noise that still happens to clear the
+    // fixed threshold.
+    const isProminent = peak > noiseFloorRef.current * PROMINENCE_MULTIPLIER;
 
-    if (peak > threshold && now - lastEventAtRef.current > REFRACTORY_MS) {
+    if (peak > threshold && isProminent && !inRefractory) {
       lastEventAtRef.current = now;
       const t = now - beepAtRef.current;
       const isFirstEvent = eventCountRef.current === 0;
@@ -199,6 +217,10 @@ export function useShotTimer({ onCommit } = {}) {
       const kind = isFirstEvent && settingsRef.current.drawDetection ? "draw" : "shot";
       setShots((prev) => [...prev, { t, kind }]);
       eventKindSinceSampleRef.current = kind;
+    } else if (!inRefractory) {
+      // Not a registered event and not the decay tail of a recent one - safe
+      // to fold into the rolling ambient noise floor.
+      noiseFloorRef.current = noiseFloorRef.current * (1 - NOISE_FLOOR_ALPHA) + peak * NOISE_FLOOR_ALPHA;
     }
 
     if (now - waveformSampleAtRef.current >= SAMPLE_INTERVAL_MS) {
@@ -453,6 +475,7 @@ export function useShotTimer({ onCommit } = {}) {
       beepAtRef.current = performance.now();
       lastEventAtRef.current = 0;
       eventCountRef.current = 0;
+      noiseFloorRef.current = 0;
       waveformSampleAtRef.current = performance.now();
       maxPeakSinceSampleRef.current = 0;
       eventKindSinceSampleRef.current = null;
