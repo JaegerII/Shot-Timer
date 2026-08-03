@@ -1154,8 +1154,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .leaderboard-row:last-child { border-bottom: none; }
 .leaderboard-row.is-me {
-  background: var(--accent-dim);
+  background: var(--bg-input);
   border-radius: 10px;
+  border-left: 3px solid var(--accent);
   padding-left: 8px;
   padding-right: 8px;
   margin: 0 -8px;
