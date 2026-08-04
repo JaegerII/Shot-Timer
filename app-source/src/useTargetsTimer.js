@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createBeepPlayer } from "./beep";
+import { createBeepPlayer, primeMobileAudio } from "./beep";
 
 const SETTINGS_KEY = "targets-settings";
 
@@ -283,6 +283,7 @@ export function useTargetsTimer() {
     // the actual context creation/resume call, needs to happen inside the
     // gesture) keeps them unlocked for the rest of the run.
     beepPlayerRef.current.ensureAudioCtx();
+    primeMobileAudio();
     if (speechSynthesisAvailable) {
       try {
         const unlock = new SpeechSynthesisUtterance(" ");

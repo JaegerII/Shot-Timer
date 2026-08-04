@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createBeepPlayer } from "./beep";
+import { createBeepPlayer, primeMobileAudio } from "./beep";
 
 const SETTINGS_KEY = "transitions-settings";
 
 const DEFAULT_SETTINGS = {
-  categories: { lr: true, abcd: true, numbers: true, colors: true, distance: false },
+  categories: { lr: true, abcd: false, numbers: false, colors: false, distance: false },
   interval: "1", // "0.5" | "1" | "2" | "random"
   count: "10", // "10" | "20" | "endless"
   voiceGender: "female", // "female" | "male" - best effort, browser/device dependent
@@ -40,31 +40,25 @@ function loadJSON(key, fallback) {
 const speechSynthesisAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
 
 // Best-effort voice pick - the Web Speech API doesn't expose a reliable
-// gender field, so this falls back to matching common name hints, and
-// otherwise prefers higher-quality voices (network/"enhanced"/"neural"
-// ones sound far less robotic than the default local/compact voice most
-// browsers pick automatically) before just using whatever's first.
+// gender field, so this just matches common name hints among the German
+// voices and otherwise leaves the browser's own default voice in place
+// (utter.voice stays unset). Deliberately NOT trying to be clever about
+// "better" voices here - preferring non-local/network voices actively
+// made things worse (picked oddball/foreign voices on some phones), so
+// that heuristic was removed again.
 function pickVoice(gender) {
   if (!speechSynthesisAvailable) return null;
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return null;
   const german = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith("de"));
-  const pool = german.length ? german : voices;
+  if (!german.length) return null;
 
   const genderHints =
     gender === "male"
       ? ["male", "markus", "yannick", "hans", "stefan"]
       : ["female", "anna", "petra", "helena", "katja", "marlene"];
-  const qualityHints = ["enhanced", "premium", "neural", "natural", "siri"];
 
-  const genderMatches = pool.filter((v) => genderHints.some((h) => v.name.toLowerCase().includes(h)));
-  const best =
-    genderMatches.find((v) => qualityHints.some((h) => v.name.toLowerCase().includes(h))) ||
-    genderMatches[0] ||
-    pool.find((v) => qualityHints.some((h) => v.name.toLowerCase().includes(h))) ||
-    (pool.find((v) => !v.localService) ?? pool[0]);
-
-  return best;
+  return german.find((v) => genderHints.some((h) => v.name.toLowerCase().includes(h))) || null;
 }
 
 function speak(text, gender) {
@@ -223,6 +217,7 @@ export function useTransitionsTimer() {
     // and mobile browsers (iOS Safari especially) silently block audio
     // APIs invoked that far removed from a gesture.
     beepPlayerRef.current.ensureAudioCtx();
+    primeMobileAudio();
     if (speechSynthesisAvailable) {
       try {
         const unlock = new SpeechSynthesisUtterance(" ");
