@@ -733,7 +733,7 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: center;
   background: #e7e1d0;
   border-radius: 14px;
-  padding: 18px;
+  padding: 10px;
   margin-bottom: 10px;
   overflow: hidden;
   cursor: pointer;
@@ -759,37 +759,75 @@ input[type="range"]::-webkit-slider-thumb {
   height: 16px;
 }
 
-/* Full-screen tap-to-close view for practicing sight picture at real size. */
+/* Full-screen view for practicing sight picture at real size - includes its
+   own status/time readout and Start/Stop/Reset so the timer can be run
+   without ever leaving the enlarged target. */
 .target-zoom-overlay {
   position: fixed;
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(8, 30, 36, 0.97);
-  padding: 28px;
-  cursor: pointer;
+  flex-direction: column;
+  background: rgba(8, 30, 36, 0.98);
+  padding: calc(env(safe-area-inset-top, 16px) + 12px) 16px
+    calc(env(safe-area-inset-bottom, 16px) + 16px);
 }
 
-.target-zoom-overlay .target-img,
-.target-zoom-overlay .target-svg {
+.zoom-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.zoom-topbar .mini-timer-status {
+  flex: 1;
+}
+
+.zoom-close-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.zoom-close-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.zoom-target-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.zoom-target-wrap .target-img,
+.zoom-target-wrap .target-svg {
   max-width: 100%;
   max-height: 100%;
   width: auto;
   height: 100%;
 }
 
-.target-zoom-hint {
-  position: absolute;
-  top: calc(env(safe-area-inset-top, 16px) + 14px);
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+.zoom-bottom-bar {
+  flex-shrink: 0;
+  margin-top: 10px;
+}
+
+.zoom-bottom-bar .main-btn {
+  margin-bottom: 8px;
 }
 
 .target-svg {

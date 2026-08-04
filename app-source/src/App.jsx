@@ -245,6 +245,15 @@ function IconExpand() {
   );
 }
 
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </svg>
+  );
+}
+
 function TargetsPanel({ t }) {
   const s = t.settings;
   const running = t.phase !== "idle" && t.phase !== "done";
@@ -323,9 +332,38 @@ function TargetsPanel({ t }) {
       </div>
 
       {zoomed && (
-        <div className="target-zoom-overlay" onClick={() => setZoomed(false)}>
-          <span className="target-zoom-hint">Tippen zum Schließen</span>
-          <TargetGraphic type={s.targetType} />
+        <div className="target-zoom-overlay">
+          <div className="zoom-topbar">
+            <span className="mini-timer-status">{statusLabel}</span>
+            {t.phase === "arming" && t.armRemaining != null && (
+              <span className="mini-timer-arm">{(t.armRemaining / 1000).toFixed(1)}s</span>
+            )}
+            <span className="mini-timer-time">{bigTime}</span>
+            <button className="zoom-close-btn" onClick={() => setZoomed(false)} aria-label="Schließen">
+              <IconClose />
+            </button>
+          </div>
+
+          <div className="zoom-target-wrap">
+            <TargetGraphic type={s.targetType} />
+          </div>
+
+          <div className="zoom-bottom-bar">
+            {running ? (
+              <button className="main-btn compact stop" onClick={t.stop}>
+                Stop
+              </button>
+            ) : (
+              <button className="main-btn compact start" onClick={t.start}>
+                Start
+              </button>
+            )}
+            <div className="row-btns compact">
+              <button className="sec-btn" onClick={t.reset}>
+                Reset
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>
