@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useShotTimer } from "./useShotTimer";
 import { useTargetsTimer } from "./useTargetsTimer";
 
@@ -354,41 +355,43 @@ function TargetsPanel({ t }) {
         </button>
       </div>
 
-      {zoomed && (
-        <div className="target-zoom-overlay">
-          <div className="zoom-topbar">
-            <span className="mini-timer-status">{statusLabel}</span>
-            {t.phase === "arming" && t.armRemaining != null && (
-              <span className="mini-timer-arm">{(t.armRemaining / 1000).toFixed(1)}s</span>
-            )}
-            <span className="mini-timer-time">{bigTime}</span>
-            <button className="zoom-close-btn" onClick={() => setZoomed(false)} aria-label="Schließen">
-              <IconClose />
-            </button>
-          </div>
-
-          <div className="zoom-target-wrap">
-            <TargetGraphic type={s.targetType} />
-          </div>
-
-          <div className="zoom-bottom-bar">
-            {running ? (
-              <button className="main-btn compact stop" onClick={t.stop}>
-                Stop
-              </button>
-            ) : (
-              <button className="main-btn compact start" onClick={t.start}>
-                Start
-              </button>
-            )}
-            <div className="row-btns compact">
-              <button className="sec-btn" onClick={t.reset}>
-                Reset
+      {zoomed &&
+        createPortal(
+          <div className="target-zoom-overlay">
+            <div className="zoom-topbar">
+              <span className="mini-timer-status">{statusLabel}</span>
+              {t.phase === "arming" && t.armRemaining != null && (
+                <span className="mini-timer-arm">{(t.armRemaining / 1000).toFixed(1)}s</span>
+              )}
+              <span className="mini-timer-time">{bigTime}</span>
+              <button className="zoom-close-btn" onClick={() => setZoomed(false)} aria-label="Schließen">
+                <IconClose />
               </button>
             </div>
-          </div>
-        </div>
-      )}
+
+            <div className="zoom-target-wrap">
+              <TargetGraphic type={s.targetType} />
+            </div>
+
+            <div className="zoom-bottom-bar">
+              {running ? (
+                <button className="main-btn compact stop" onClick={t.stop}>
+                  Stop
+                </button>
+              ) : (
+                <button className="main-btn compact start" onClick={t.start}>
+                  Start
+                </button>
+              )}
+              <div className="row-btns compact">
+                <button className="sec-btn" onClick={t.reset}>
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
