@@ -13,6 +13,26 @@ function Toggle({ on, onClick }) {
   return <button className={`toggle ${on ? "on" : ""}`} onClick={onClick} />;
 }
 
+// Only the mode selector for now - Dry Fire is the only working mode. Live
+// Fire is intentionally non-interactive (structure only, per roadmap) until
+// its own beep/par-time-only flow is actually built.
+function ModeSwitch() {
+  return (
+    <div className="panel mode-switch">
+      <h2>Modus</h2>
+      <div className="mode-option active">
+        <span className="mode-dot" />
+        <span>Dry Fire</span>
+      </div>
+      <div className="mode-option disabled" aria-disabled="true">
+        <span className="mode-dot" />
+        <span>Live Fire</span>
+        <span className="mode-soon">Bald verfügbar</span>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const t = useShotTimer();
   const [tab, setTab] = useState("timer"); // timer | settings
@@ -44,6 +64,8 @@ export default function App() {
         <SettingsPanel t={t} />
       ) : (
         <>
+          <ModeSwitch />
+
           <div className="display">
             <div className="status-row">
               <span className="status">{statusLabel}</span>
