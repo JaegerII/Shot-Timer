@@ -213,10 +213,9 @@ function TargetGraphic({ type }) {
   }
 
   if (type === "ipsc") {
-    // The user's own reference image, background removed, used directly -
-    // hand-tracing it as SVG kept coming out slightly uneven, the source
-    // image itself is the most accurate option.
-    return <img src="./targets/ipsc.png" alt="IPSC Target" className="target-img" />;
+    // User-supplied vector artwork - crisp at any size, transparent
+    // background, no scaling artifacts like the earlier PNG/traced version.
+    return <img src="./targets/ipsc.svg" alt="IPSC Target" className="target-img" />;
   }
 
   // USPSA - classic humanoid-style silhouette, visually distinct from the
