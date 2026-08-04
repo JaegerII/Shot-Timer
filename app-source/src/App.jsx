@@ -202,12 +202,30 @@ const TARGET_TYPES = [
 
 // Simplified target shapes for sight-picture practice - not to official
 // competition scoring dimensions, just visually representative.
+// The FORT mark, traced from the app's own header/footer logo, as a raw
+// path in its native 167x240 coordinate space. Stamped small and
+// semi-transparent onto every target graphic below - both as a subtle
+// brand touch and so the artwork isn't just a bare, easily-reused SVG.
+const LOGO_MARK_PATH = "M83,1 L0,163 L0,195 L49,239 L72,239 L83,78 L94,239 L117,239 L166,195 L166,163 Z";
+
+function LogoWatermark({ x, y, width }) {
+  const scale = width / 167;
+  return (
+    <g transform={`translate(${x},${y}) scale(${scale})`} fill="currentColor" opacity="0.32">
+      <path d={LOGO_MARK_PATH} />
+    </g>
+  );
+}
+
 function TargetGraphic({ type }) {
   if (type === "steel") {
     return (
       <svg viewBox="0 0 200 200" className="target-svg" preserveAspectRatio="xMidYMid meet">
         <circle cx="100" cy="100" r="82" className="target-steel-plate" />
         <circle cx="100" cy="100" r="82" className="target-steel-rim" />
+        <g className="target-watermark">
+          <LogoWatermark x={91} y={134.2} width={15} />
+        </g>
       </svg>
     );
   }
@@ -215,6 +233,8 @@ function TargetGraphic({ type }) {
   if (type === "ipsc") {
     // User-supplied vector artwork - crisp at any size, transparent
     // background, no scaling artifacts like the earlier PNG/traced version.
+    // The FORT mark is baked directly into the SVG file itself as a
+    // watermark (see public/targets/ipsc.svg).
     return <img src="./targets/ipsc.svg" alt="IPSC Target" className="target-img" />;
   }
 
@@ -225,6 +245,9 @@ function TargetGraphic({ type }) {
       <path d="M60 300 L60 150 Q60 90 100 90 Q140 90 140 150 L140 300 Z" className="target-fill" />
       <circle cx="100" cy="55" r="38" className="target-fill" />
       <ellipse cx="100" cy="150" rx="28" ry="46" className="target-line" />
+      <g className="target-watermark">
+        <LogoWatermark x={91} y={257.1} width={18} />
+      </g>
     </svg>
   );
 }
