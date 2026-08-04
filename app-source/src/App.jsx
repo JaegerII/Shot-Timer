@@ -2,8 +2,9 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useShotTimer } from "./useShotTimer";
 import { useTargetsTimer } from "./useTargetsTimer";
+import { useTransitionsTimer } from "./useTransitionsTimer";
 
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.6.0";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -38,7 +39,8 @@ function ModeSwitch() {
 export default function App() {
   const t = useShotTimer();
   const tt = useTargetsTimer();
-  const [tab, setTab] = useState("timer"); // timer | targets | settings
+  const tr = useTransitionsTimer();
+  const [tab, setTab] = useState("timer"); // timer | targets | transitions | settings
 
   const running = t.phase === "arming" || t.phase === "listening";
 
@@ -67,6 +69,8 @@ export default function App() {
         <SettingsPanel t={t} />
       ) : tab === "targets" ? (
         <TargetsPanel t={tt} />
+      ) : tab === "transitions" ? (
+        <TransitionsPanel t={tr} />
       ) : (
         <>
           <ModeSwitch />
@@ -113,6 +117,7 @@ function BottomNav({ tab, setTab }) {
   const items = [
     { key: "timer", label: "Timer", icon: IconTimer },
     { key: "targets", label: "Targets", icon: IconTargets },
+    { key: "transitions", label: "Transitions", icon: IconTransitions },
     { key: "settings", label: "Einstellungen", icon: IconSettings },
   ];
 
@@ -154,6 +159,17 @@ function IconTargets() {
       <path d="M12 19v3" />
       <path d="M2 12h3" />
       <path d="M19 12h3" />
+    </svg>
+  );
+}
+
+function IconTransitions() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h11" />
+      <path d="M12 4l3 3-3 3" />
+      <path d="M20 17H9" />
+      <path d="M12 20l-3-3 3-3" />
     </svg>
   );
 }
@@ -387,6 +403,135 @@ function TargetsPanel({ t }) {
           </div>,
           document.body
         )}
+    </>
+  );
+}
+
+const TRANSITION_CATEGORIES = [
+  { key: "lr", label: "Links / Mitte / Rechts" },
+  { key: "abcd", label: "Buchstaben A–D" },
+  { key: "numbers", label: "Zahlen 1–5" },
+  { key: "colors", label: "Farben" },
+  { key: "distance", label: "Nah / Fern" },
+];
+
+const TRANSITION_INTERVALS = [
+  { key: "0.5", label: "0.5s" },
+  { key: "1", label: "1s" },
+  { key: "2", label: "2s" },
+  { key: "random", label: "Zufall" },
+];
+
+const TRANSITION_COUNTS = [
+  { key: "10", label: "10" },
+  { key: "20", label: "20" },
+  { key: "endless", label: "Endlos" },
+];
+
+// Transitions drill: the app calls out a random direction/letter/number/
+// color/distance at a set pace, you react. Pure audio output - no camera,
+// no mic, nothing to detect, just the spoken prompt and a matching large
+// on-screen readout for anyone training without sound.
+function TransitionsPanel({ t }) {
+  const s = t.settings;
+  const running = t.phase === "running";
+  const hasCategory = Object.values(s.categories).some(Boolean);
+  const countLabel = s.count === "endless" ? "∞" : s.count;
+
+  const statusLabel = {
+    idle: "Bereit",
+    running: "Läuft",
+    done: "Fertig",
+  }[t.phase];
+
+  return (
+    <>
+      <div className="panel target-settings">
+        <h2>Kategorien</h2>
+        {TRANSITION_CATEGORIES.map((c) => (
+          <div className="toggle-row" key={c.key}>
+            <span>{c.label}</span>
+            <Toggle
+              on={s.categories[c.key]}
+              onClick={() =>
+                t.setSettings({ categories: { ...s.categories, [c.key]: !s.categories[c.key] } })
+              }
+            />
+          </div>
+        ))}
+        {!hasCategory && (
+          <div className="field-hint">Wähle mindestens eine Kategorie aus, um zu starten.</div>
+        )}
+      </div>
+
+      <div className="panel target-settings">
+        <h2>Intervall</h2>
+        <div className="segmented">
+          {TRANSITION_INTERVALS.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              className={`segmented-btn ${s.interval === opt.key ? "active" : ""}`}
+              onClick={() => t.setSettings({ interval: opt.key })}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel target-settings">
+        <h2>Anzahl</h2>
+        <div className="segmented">
+          {TRANSITION_COUNTS.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              className={`segmented-btn ${s.count === opt.key ? "active" : ""}`}
+              onClick={() => t.setSettings({ count: opt.key })}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="toggle-row" style={{ marginTop: 12 }}>
+          <span>Stimme: {s.voiceGender === "male" ? "Männlich" : "Weiblich"}</span>
+          <Toggle
+            on={s.voiceGender === "male"}
+            onClick={() => t.setSettings({ voiceGender: s.voiceGender === "male" ? "female" : "male" })}
+          />
+        </div>
+        {!t.speechSupported && (
+          <div className="field-hint">Dein Browser unterstützt keine Sprachausgabe.</div>
+        )}
+      </div>
+
+      <div className="mini-timer-bar">
+        <span className="mini-timer-status">{statusLabel}</span>
+        <span className="mini-timer-time">
+          {t.calledCount}/{countLabel}
+        </span>
+      </div>
+
+      <div className="transitions-frame">
+        <span className="transitions-call-text">{t.current ?? "–"}</span>
+      </div>
+
+      {running ? (
+        <button className="main-btn compact stop" onClick={t.stop}>
+          Stop
+        </button>
+      ) : (
+        <button className="main-btn compact start" onClick={t.start} disabled={!hasCategory}>
+          Start
+        </button>
+      )}
+
+      <div className="row-btns compact">
+        <button className="sec-btn" onClick={t.reset}>
+          Reset
+        </button>
+      </div>
     </>
   );
 }
