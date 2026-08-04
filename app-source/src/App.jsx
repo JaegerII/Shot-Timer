@@ -243,8 +243,9 @@ function TargetGraphic({ type }) {
     return <img src="./targets/ipsc-cropped.svg" alt="IPSC Target" className="target-img" />;
   }
 
-  // USPSA - user-supplied vector artwork with the real D/C/A/B zone layout.
-  return <img src="./targets/uspsa-v2.svg" alt="USPSA Target" className="target-img" />;
+  // USPSA - user-supplied vector artwork with the real D/C/A/B zone layout,
+  // including the FORT mark baked directly into the design.
+  return <img src="./targets/uspsa-v3-cropped.svg" alt="USPSA Target" className="target-img" />;
 }
 
 // Range Officer simulation: pick a target type, optionally turn on Voice
