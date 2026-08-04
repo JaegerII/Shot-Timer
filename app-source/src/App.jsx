@@ -200,8 +200,8 @@ const TARGET_TYPES = [
   { key: "steel", label: "Steel" },
 ];
 
-// Simplified target silhouettes for sight-picture practice - not to
-// official competition scoring dimensions, just visually representative.
+// Simplified target shapes for sight-picture practice - not to official
+// competition scoring dimensions, just visually representative.
 function TargetGraphic({ type }) {
   if (type === "steel") {
     return (
@@ -212,28 +212,29 @@ function TargetGraphic({ type }) {
     );
   }
 
+  if (type === "ipsc") {
+    // Classic IPSC octagon target with nested D/C/A zones.
+    return (
+      <svg viewBox="0 0 200 260" className="target-svg" preserveAspectRatio="xMidYMid meet">
+        <path d="M65 10 L135 10 L185 65 L185 195 L135 250 L65 250 L15 195 L15 65 Z" className="target-fill" />
+        <path d="M75 45 L125 45 L160 80 L160 180 L125 215 L75 215 L40 180 L40 80 Z" className="target-line" />
+        <path d="M85 75 L115 75 L140 110 L140 175 L100 215 L60 175 L60 110 Z" className="target-line" />
+        <text x="27" y="134" className="target-zone-label">D</text>
+        <text x="50" y="134" className="target-zone-label">C</text>
+        <text x="100" y="134" className="target-zone-label">A</text>
+        <text x="150" y="134" className="target-zone-label">C</text>
+        <text x="173" y="134" className="target-zone-label">D</text>
+      </svg>
+    );
+  }
+
+  // USPSA - classic humanoid-style silhouette, visually distinct from the
+  // IPSC octagon/zone target above.
   return (
     <svg viewBox="0 0 200 320" className="target-svg" preserveAspectRatio="xMidYMid meet">
-      {/* Torso / C-zone */}
-      <path
-        d="M60 300 L60 150 Q60 90 100 90 Q140 90 140 150 L140 300 Z"
-        className="target-c-zone"
-      />
-      {/* Head */}
-      <circle cx="100" cy="55" r="38" className="target-c-zone" />
-      {/* A-zone */}
-      <ellipse cx="100" cy="150" rx="28" ry="46" className="target-a-zone" />
-      {type === "uspsa" && (
-        <rect
-          x="82"
-          y="30"
-          width="36"
-          height="36"
-          rx="4"
-          className="target-head-box"
-          transform="rotate(45 100 48)"
-        />
-      )}
+      <path d="M60 300 L60 150 Q60 90 100 90 Q140 90 140 150 L140 300 Z" className="target-fill" />
+      <circle cx="100" cy="55" r="38" className="target-fill" />
+      <ellipse cx="100" cy="150" rx="28" ry="46" className="target-line" />
     </svg>
   );
 }

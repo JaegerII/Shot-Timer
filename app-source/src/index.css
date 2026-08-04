@@ -727,23 +727,25 @@ input[type="range"]::-webkit-slider-thumb {
   max-width: 260px;
 }
 
-.target-c-zone {
+.target-fill {
   fill: #b99f74;
   stroke: #2a2420;
   stroke-width: 3;
 }
 
-.target-a-zone {
+.target-line {
   fill: none;
   stroke: #241d18;
   stroke-width: 2.5;
-  stroke-dasharray: 6 4;
 }
 
-.target-head-box {
-  fill: none;
-  stroke: #241d18;
-  stroke-width: 2;
+.target-zone-label {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  fill: #241d18;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 .target-steel-plate {
