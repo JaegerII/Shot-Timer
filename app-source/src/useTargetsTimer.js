@@ -200,7 +200,13 @@ export function useTargetsTimer() {
     }
     setMicError(null);
     const rec = new SpeechRecognitionCtor();
-    rec.lang = "de-DE";
+    // "Shooter Ready" is spoken in English (matching the "Standby" RO
+    // command) - recognizing it with a German language model was the
+    // actual cause of the noticeable lag before "Standby" fired: de-DE
+    // garbles/mishears the English phrase for a while before a transcript
+    // happens to contain both words, whereas en-US catches it almost
+    // immediately.
+    rec.lang = "en-US";
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (event) => {
