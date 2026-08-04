@@ -386,6 +386,22 @@ body {
 }
 .main-btn.stop:active { background: #c6c5bc; }
 
+/* Compact variant - used on the Targets tab so the actions take up less
+   vertical space, leaving more room for the target graphic itself. */
+.main-btn.compact {
+  padding: 13px;
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+
+.row-btns.compact {
+  margin-bottom: 0;
+}
+.row-btns.compact .sec-btn {
+  padding: 9px;
+  font-size: 13px;
+}
+
 .row-btns {
   display: flex;
   gap: 10px;
@@ -678,8 +694,8 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
@@ -709,6 +725,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .target-frame {
+  position: relative;
   flex: 1;
   min-height: 260px;
   display: flex;
@@ -717,8 +734,62 @@ input[type="range"]::-webkit-slider-thumb {
   background: #e7e1d0;
   border-radius: 14px;
   padding: 18px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   overflow: hidden;
+  cursor: pointer;
+}
+
+.target-expand-icon {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 30, 36, 0.55);
+  border-radius: 8px;
+  color: #e7e1d0;
+  pointer-events: none;
+}
+
+.target-expand-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Full-screen tap-to-close view for practicing sight picture at real size. */
+.target-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 30, 36, 0.97);
+  padding: 28px;
+  cursor: pointer;
+}
+
+.target-zoom-overlay .target-img,
+.target-zoom-overlay .target-svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: 100%;
+}
+
+.target-zoom-hint {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 16px) + 14px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .target-svg {

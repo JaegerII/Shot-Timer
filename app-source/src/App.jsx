@@ -234,9 +234,21 @@ function TargetGraphic({ type }) {
 // the random delay + beep starts) - otherwise Start behaves just like the
 // Dry Fire timer. The target itself is shown full-size for sight-picture
 // practice, with the timer reduced to a slim status bar.
+function IconExpand() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
 function TargetsPanel({ t }) {
   const s = t.settings;
   const running = t.phase !== "idle" && t.phase !== "done";
+  const [zoomed, setZoomed] = useState(false);
 
   const statusLabel = {
     idle: "Bereit",
@@ -287,25 +299,35 @@ function TargetsPanel({ t }) {
         <span className="mini-timer-time">{bigTime}</span>
       </div>
 
-      <div className="target-frame">
+      <div className="target-frame" onClick={() => setZoomed(true)}>
         <TargetGraphic type={s.targetType} />
+        <span className="target-expand-icon">
+          <IconExpand />
+        </span>
       </div>
 
       {running ? (
-        <button className="main-btn stop" onClick={t.stop}>
+        <button className="main-btn compact stop" onClick={t.stop}>
           Stop
         </button>
       ) : (
-        <button className="main-btn start" onClick={t.start}>
+        <button className="main-btn compact start" onClick={t.start}>
           Start
         </button>
       )}
 
-      <div className="row-btns">
+      <div className="row-btns compact">
         <button className="sec-btn" onClick={t.reset}>
           Reset
         </button>
       </div>
+
+      {zoomed && (
+        <div className="target-zoom-overlay" onClick={() => setZoomed(false)}>
+          <span className="target-zoom-hint">Tippen zum Schließen</span>
+          <TargetGraphic type={s.targetType} />
+        </div>
+      )}
     </>
   );
 }

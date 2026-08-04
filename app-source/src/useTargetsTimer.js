@@ -206,7 +206,9 @@ export function useTargetsTimer() {
     rec.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript.toLowerCase();
-        if (transcript.includes("ready")) {
+        // Require both words - triggering on "ready" alone caused false
+        // starts from unrelated speech containing that word.
+        if (transcript.includes("shooter") && transcript.includes("ready")) {
           handleShooterReadyHeard();
           break;
         }
