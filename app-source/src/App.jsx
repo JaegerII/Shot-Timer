@@ -238,17 +238,13 @@ function TargetGraphic({ type }) {
   }
 
   if (type === "ipsc") {
-    // User-supplied vector artwork - crisp at any size, transparent
-    // background, no scaling artifacts like the earlier PNG/traced version.
-    // The FORT mark is baked directly into the SVG file itself as a
-    // watermark (see public/targets/ipsc.svg).
-    return <img src="./targets/ipsc.svg" alt="IPSC Target" className="target-img" />;
+    // User-supplied vector artwork, including the FORT mark baked directly
+    // into the design by the user themselves (see public/targets/ipsc-cropped.svg).
+    return <img src="./targets/ipsc-cropped.svg" alt="IPSC Target" className="target-img" />;
   }
 
-  // USPSA - user-supplied vector artwork with the real D/C/A/B zone
-  // layout, same treatment as the IPSC target. The FORT mark is baked
-  // directly into the SVG file itself (see public/targets/uspsa-target.svg).
-  return <img src="./targets/uspsa-target.svg" alt="USPSA Target" className="target-img" />;
+  // USPSA - user-supplied vector artwork with the real D/C/A/B zone layout.
+  return <img src="./targets/uspsa-v2.svg" alt="USPSA Target" className="target-img" />;
 }
 
 // Range Officer simulation: pick a target type, optionally turn on Voice
