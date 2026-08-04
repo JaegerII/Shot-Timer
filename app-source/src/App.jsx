@@ -220,12 +220,18 @@ function LogoWatermark({ x, y, width }) {
 
 function TargetGraphic({ type }) {
   if (type === "steel") {
+    // Popper-style steel target (round head on a narrow stand neck), traced
+    // from the user's reference photo. The neck rect is drawn first and the
+    // head circle layered on top so the shapes read as one clean silhouette
+    // with no seam where they overlap.
     return (
-      <svg viewBox="0 0 200 200" className="target-svg" preserveAspectRatio="xMidYMid meet">
-        <circle cx="100" cy="100" r="82" className="target-steel-plate" />
-        <circle cx="100" cy="100" r="82" className="target-steel-rim" />
+      <svg viewBox="0 0 200 320" className="target-svg" preserveAspectRatio="xMidYMid meet">
+        <rect x="72" y="105" width="56" height="210" className="target-steel-plate" />
+        <rect x="72" y="105" width="56" height="210" className="target-steel-rim" />
+        <circle cx="100" cy="80" r="78" className="target-steel-plate" />
+        <circle cx="100" cy="80" r="78" className="target-steel-rim" />
         <g className="target-watermark">
-          <LogoWatermark x={91} y={134.2} width={15} />
+          <LogoWatermark x={92} y={258.5} width={16} />
         </g>
       </svg>
     );
