@@ -195,68 +195,109 @@ function ParTimeQuickBar({ t }) {
 }
 
 const TARGET_TYPES = [
-  { key: "ipsc", label: "IPSC Target" },
-  { key: "uspsa", label: "USPSA Target" },
-  { key: "steel", label: "Steel Plate" },
+  { key: "ipsc", label: "IPSC" },
+  { key: "uspsa", label: "USPSA" },
+  { key: "steel", label: "Steel" },
 ];
 
+// Simplified target silhouettes for sight-picture practice - not to
+// official competition scoring dimensions, just visually representative.
+function TargetGraphic({ type }) {
+  if (type === "steel") {
+    return (
+      <svg viewBox="0 0 200 200" className="target-svg" preserveAspectRatio="xMidYMid meet">
+        <circle cx="100" cy="100" r="82" className="target-steel-plate" />
+        <circle cx="100" cy="100" r="82" className="target-steel-rim" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 200 320" className="target-svg" preserveAspectRatio="xMidYMid meet">
+      {/* Torso / C-zone */}
+      <path
+        d="M60 300 L60 150 Q60 90 100 90 Q140 90 140 150 L140 300 Z"
+        className="target-c-zone"
+      />
+      {/* Head */}
+      <circle cx="100" cy="55" r="38" className="target-c-zone" />
+      {/* A-zone */}
+      <ellipse cx="100" cy="150" rx="28" ry="46" className="target-a-zone" />
+      {type === "uspsa" && (
+        <rect
+          x="82"
+          y="30"
+          width="36"
+          height="36"
+          rx="4"
+          className="target-head-box"
+          transform="rotate(45 100 48)"
+        />
+      )}
+    </svg>
+  );
+}
+
 // Range Officer simulation: pick a target type, optionally turn on Voice
-// Start (mic listens for you to say "Standby" before the random delay +
-// beep), otherwise Start behaves just like the Dry Fire timer's GO.
+// Start (you say "Shooter Ready", the app answers "Standby" out loud, then
+// the random delay + beep starts) - otherwise Start behaves just like the
+// Dry Fire timer. The target itself is shown full-size for sight-picture
+// practice, with the timer reduced to a slim status bar.
 function TargetsPanel({ t }) {
   const s = t.settings;
-  const running = t.phase === "ready" || t.phase === "arming" || t.phase === "listening";
+  const running = t.phase !== "idle" && t.phase !== "done";
 
   const statusLabel = {
     idle: "Bereit",
-    ready: 'Warte auf "Standby"...',
+    ready: 'Warte auf "Shooter Ready"...',
+    standby: "Standby",
     arming: "Achtung...",
     listening: "Läuft",
     done: "Fertig",
   }[t.phase];
 
-  const bigTime = t.phase === "idle" || t.phase === "ready" ? "0.00" : fmt(t.liveElapsed);
+  const bigTime =
+    t.phase === "idle" || t.phase === "ready" || t.phase === "standby" ? "0.00" : fmt(t.liveElapsed);
 
   return (
     <>
-      <div className="panel radio-list">
-        <h2>Target</h2>
-        {TARGET_TYPES.map((opt) => (
-          <button
-            key={opt.key}
-            type="button"
-            className={`radio-option as-button ${s.targetType === opt.key ? "active" : ""}`}
-            onClick={() => t.setSettings({ targetType: opt.key })}
-          >
-            <span className="radio-dot" />
-            <span>{opt.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="panel">
-        <h2>Voice Start</h2>
-        <div className="toggle-row">
-          <span>Auf "Standby" warten</span>
+      <div className="panel target-settings">
+        <div className="segmented">
+          {TARGET_TYPES.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              className={`segmented-btn ${s.targetType === opt.key ? "active" : ""}`}
+              onClick={() => t.setSettings({ targetType: opt.key })}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="toggle-row" style={{ marginTop: 12 }}>
+          <span>Voice Start</span>
           <Toggle on={s.voiceEnabled} onClick={() => t.setSettings({ voiceEnabled: !s.voiceEnabled })} />
         </div>
-        <div className="field-hint">
-          Aktiviert hört die App beim Start übers Mikrofon mit und startet den Zufalls-Delay
-          erst, wenn du "Standby" sagst - simuliert einen Range Officer. Die Mikrofonberechtigung
-          wird erst abgefragt, wenn du mit aktiviertem Voice Start auf Start tippst.
-        </div>
+        {s.voiceEnabled && (
+          <div className="field-hint">
+            Du sagst "Shooter Ready", die App antwortet "Standby" und startet danach den
+            Zufalls-Delay.
+          </div>
+        )}
       </div>
 
       {t.micError && <div className="mic-warning">{t.micError}</div>}
 
-      <div className="display">
-        <div className="status-row">
-          <span className="status">{statusLabel}</span>
-          {t.phase === "arming" && t.armRemaining != null && (
-            <span className="arm-countdown">{(t.armRemaining / 1000).toFixed(1)}s</span>
-          )}
-        </div>
-        <div className="time">{bigTime}</div>
+      <div className="mini-timer-bar">
+        <span className="mini-timer-status">{statusLabel}</span>
+        {t.phase === "arming" && t.armRemaining != null && (
+          <span className="mini-timer-arm">{(t.armRemaining / 1000).toFixed(1)}s</span>
+        )}
+        <span className="mini-timer-time">{bigTime}</span>
+      </div>
+
+      <div className="target-frame">
+        <TargetGraphic type={s.targetType} />
       </div>
 
       {running ? (
@@ -437,13 +478,13 @@ function PrivacySection() {
         <h2>Mikrofonzugriff</h2>
         <p>
           Der Dry-Fire-Timer nutzt kein Mikrofon. Aktivierst du im Targets-Tab "Voice Start",
-          hört die App beim Start kurz mit, um auf das Wort "Standby" zu warten - danach wird
-          das Mikrofon sofort wieder deaktiviert. Diese Erkennung läuft über die
-          Spracherkennungs-Funktion deines Browsers bzw. Betriebssystems; je nach Gerät kann
-          diese Verarbeitung dabei über einen Online-Dienst des jeweiligen Anbieters (z. B.
-          Google bei Chrome) erfolgen. Wir selbst speichern oder übertragen dabei nichts an
-          eigene Server. Die Berechtigung wird nur abgefragt, wenn du Voice Start aktivierst und
-          Start drückst.
+          hört die App beim Start kurz mit, um auf das gesprochene "Shooter Ready" zu warten -
+          danach wird das Mikrofon sofort wieder deaktiviert und die App antwortet per
+          Sprachausgabe mit "Standby". Die Spracherkennung läuft über die entsprechende Funktion
+          deines Browsers bzw. Betriebssystems; je nach Gerät kann diese Verarbeitung dabei über
+          einen Online-Dienst des jeweiligen Anbieters (z. B. Google bei Chrome) erfolgen. Wir
+          selbst speichern oder übertragen dabei nichts an eigene Server. Die Berechtigung wird
+          nur abgefragt, wenn du Voice Start aktivierst und Start drückst.
         </p>
 
         <h2>Kein Tracking</h2>

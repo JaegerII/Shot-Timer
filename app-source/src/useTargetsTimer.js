@@ -25,19 +25,44 @@ function loadJSON(key, fallback) {
 
 const SpeechRecognitionCtor =
   typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+const speechSynthesisAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
 
-// Range Officer simulation: Start -> (optional) Voice Start, where the app
-// listens for you to say "Standby" -> random delay -> beep -> dry fire.
-// Unlike the plain Dry Fire timer, this one *does* use the microphone, but
-// only for the "Standby" cue, and only while Voice Start is switched on -
-// the permission prompt only ever appears when you actually press Start
-// with Voice Start enabled, never on app load or with it off.
+// Speaks "Standby" out loud (simulating the range officer) and resolves once
+// the utterance finishes - or resolves immediately if speech synthesis
+// isn't available, so the run still proceeds silently instead of stalling.
+function announceStandby() {
+  return new Promise((resolve) => {
+    if (!speechSynthesisAvailable) {
+      resolve();
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel(); // drop anything queued/stuck from before
+      const utter = new SpeechSynthesisUtterance("Standby");
+      utter.lang = "en-US"; // "Standby" is the RO command - keep it in English regardless of UI language
+      utter.rate = 0.95;
+      utter.onend = () => resolve();
+      utter.onerror = () => resolve();
+      window.speechSynthesis.speak(utter);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+// Range Officer simulation: Start -> (optional) Voice Start, where you say
+// "Shooter Ready", the app answers "Standby" out loud -> random delay ->
+// beep -> dry fire. Unlike the plain Dry Fire timer, this one *does* use the
+// microphone, but only for the "Shooter Ready" cue, and only while Voice
+// Start is switched on - the permission prompt only ever appears when you
+// actually press Start with Voice Start enabled, never on app load or with
+// it off.
 export function useTargetsTimer() {
   const [settings, setSettingsState] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
   }));
-  const [phase, setPhase] = useState("idle"); // idle | ready | arming | listening | done
+  const [phase, setPhase] = useState("idle"); // idle | ready | standby | arming | listening | done
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [armRemaining, setArmRemaining] = useState(null);
   const [micError, setMicError] = useState(null);
@@ -125,7 +150,7 @@ export function useTargetsTimer() {
   }, []);
 
   // Fires the beep and starts the run - shared by the immediate-start path
-  // (Voice Start off) and by hearing "Standby" (Voice Start on).
+  // (Voice Start off) and by the "Shooter Ready" -> "Standby" voice flow.
   const beginRun = useCallback(async () => {
     await beepPlayerRef.current.ensureAudioCtx();
     setPhase("arming");
@@ -153,15 +178,21 @@ export function useTargetsTimer() {
     }, delay * 1000);
   }, []);
 
-  // Called as soon as "standby" (or "stand by") shows up in what the mic
-  // heard, while we're still in the "ready" (waiting) phase.
-  const handleStandbyHeard = useCallback(() => {
+  // Called as soon as "ready" (from "shooter ready") shows up in what the
+  // mic heard, while we're still in the "ready" (waiting) phase. The app
+  // then answers "Standby" out loud before the random delay starts.
+  const handleShooterReadyHeard = useCallback(() => {
     if (phaseRef.current !== "ready") return;
     stopRecognition();
-    beginRun();
+    setPhase("standby");
+    announceStandby().then(() => {
+      // Only proceed if Stop/Reset didn't cancel the run while "Standby"
+      // was being spoken.
+      if (phaseRef.current === "standby") beginRun();
+    });
   }, [stopRecognition, beginRun]);
 
-  const startListeningForStandby = useCallback(() => {
+  const startListeningForReady = useCallback(() => {
     if (!SpeechRecognitionCtor) {
       setMicError("Dein Browser unterstützt keine Spracherkennung - Voice Start funktioniert hier nicht.");
       setPhase("idle");
@@ -175,8 +206,8 @@ export function useTargetsTimer() {
     rec.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript.toLowerCase();
-        if (transcript.includes("standby") || transcript.includes("stand by")) {
-          handleStandbyHeard();
+        if (transcript.includes("ready")) {
+          handleShooterReadyHeard();
           break;
         }
       }
@@ -205,11 +236,12 @@ export function useTargetsTimer() {
     } catch {
       // already started - ignore
     }
-  }, [handleStandbyHeard]);
+  }, [handleShooterReadyHeard]);
 
   const reset = useCallback(() => {
     clearTimers();
     stopRecognition();
+    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     releaseWakeLock();
     setPhase("idle");
     setLiveElapsed(0);
@@ -220,8 +252,9 @@ export function useTargetsTimer() {
   const stop = useCallback(() => {
     clearTimers();
     stopRecognition();
+    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     releaseWakeLock();
-    setPhase((p) => (p === "ready" || p === "arming" || p === "listening" ? "done" : p));
+    setPhase((p) => (p === "idle" || p === "done" ? p : "done"));
   }, [clearTimers, stopRecognition, releaseWakeLock]);
 
   const start = useCallback(async () => {
@@ -233,16 +266,17 @@ export function useTargetsTimer() {
 
     if (settingsRef.current.voiceEnabled) {
       setPhase("ready");
-      startListeningForStandby();
+      startListeningForReady();
     } else {
       await beginRun();
     }
-  }, [clearTimers, stopRecognition, requestWakeLock, beginRun, startListeningForStandby]);
+  }, [clearTimers, stopRecognition, requestWakeLock, beginRun, startListeningForReady]);
 
   useEffect(
     () => () => {
       clearTimers();
       stopRecognition();
+      if (speechSynthesisAvailable) window.speechSynthesis.cancel();
       releaseWakeLock();
     },
     [clearTimers, stopRecognition, releaseWakeLock]
