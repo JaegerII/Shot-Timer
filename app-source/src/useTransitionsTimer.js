@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createBeepPlayer, primeMobileAudio } from "./beep";
+import { createBeepPlayer } from "./beep";
 
 const SETTINGS_KEY = "transitions-settings";
 
@@ -217,7 +217,6 @@ export function useTransitionsTimer() {
     // and mobile browsers (iOS Safari especially) silently block audio
     // APIs invoked that far removed from a gesture.
     beepPlayerRef.current.ensureAudioCtx();
-    primeMobileAudio();
     if (speechSynthesisAvailable) {
       try {
         const unlock = new SpeechSynthesisUtterance(" ");

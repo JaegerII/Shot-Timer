@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createBeepPlayer, primeMobileAudio } from "./beep";
+import { createBeepPlayer } from "./beep";
 
 const SETTINGS_KEY = "shot-timer-settings";
 
@@ -120,7 +120,6 @@ export function useShotTimer() {
   // GO always works: if a run is still going (Stop wasn't pressed), it's
   // simply discarded and a fresh delay + beep starts immediately.
   const start = useCallback(async () => {
-    primeMobileAudio();
     await beepPlayerRef.current.ensureAudioCtx();
 
     clearTimers();

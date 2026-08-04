@@ -4,7 +4,7 @@ import { useShotTimer } from "./useShotTimer";
 import { useTargetsTimer } from "./useTargetsTimer";
 import { useTransitionsTimer } from "./useTransitionsTimer";
 
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.6.1";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -40,7 +40,20 @@ export default function App() {
   const t = useShotTimer();
   const tt = useTargetsTimer();
   const tr = useTransitionsTimer();
-  const [tab, setTab] = useState("timer"); // timer | targets | transitions | settings
+  const [tab, setTabState] = useState("timer"); // timer | targets | transitions | settings
+
+  // Each timer hook lives at the App level so its state survives a tab
+  // switch and back - but a run that's actually active must not keep going
+  // silently in a tab the user has left. Stopping (not resetting) the timer
+  // belonging to the tab being left keeps its last result on screen for
+  // later review, matching what the Stop button already does.
+  const setTab = (next) => {
+    if (next === tab) return;
+    if (tab === "timer" && (t.phase === "arming" || t.phase === "listening")) t.stop();
+    if (tab === "targets" && tt.phase !== "idle" && tt.phase !== "done") tt.stop();
+    if (tab === "transitions" && tr.phase !== "idle" && tr.phase !== "done") tr.stop();
+    setTabState(next);
+  };
 
   const running = t.phase === "arming" || t.phase === "listening";
 
