@@ -213,17 +213,21 @@ function TargetGraphic({ type }) {
   }
 
   if (type === "ipsc") {
-    // Classic IPSC octagon target with nested D/C/A zones.
+    // Classic IPSC target with nested D/C/A zones. Proportioned to the
+    // official full-size metric target's roughly 450 x 750mm silhouette
+    // (narrower "shoulders" up top, wider through the middle, tapered
+    // base) rather than a symmetric octagon - not a certified scoring
+    // template, but closer to the real target's proportions.
     return (
-      <svg viewBox="0 0 200 260" className="target-svg" preserveAspectRatio="xMidYMid meet">
-        <path d="M65 10 L135 10 L185 65 L185 195 L135 250 L65 250 L15 195 L15 65 Z" className="target-fill" />
-        <path d="M75 45 L125 45 L160 80 L160 180 L125 215 L75 215 L40 180 L40 80 Z" className="target-line" />
-        <path d="M85 75 L115 75 L140 110 L140 175 L100 215 L60 175 L60 110 Z" className="target-line" />
-        <text x="27" y="134" className="target-zone-label">D</text>
-        <text x="50" y="134" className="target-zone-label">C</text>
-        <text x="100" y="134" className="target-zone-label">A</text>
-        <text x="150" y="134" className="target-zone-label">C</text>
-        <text x="173" y="134" className="target-zone-label">D</text>
+      <svg viewBox="0 0 180 300" className="target-svg" preserveAspectRatio="xMidYMid meet">
+        <path d="M65 10 L115 10 L165 70 L165 230 L125 290 L55 290 L15 230 L15 70 Z" className="target-fill" />
+        <path d="M72 55 L108 55 L145 95 L145 205 L115 255 L65 255 L35 205 L35 95 Z" className="target-line" />
+        <path d="M78 80 L102 80 L128 115 L128 170 L90 205 L52 170 L52 115 Z" className="target-line" />
+        <text x="25" y="155" className="target-zone-label">D</text>
+        <text x="44" y="155" className="target-zone-label">C</text>
+        <text x="90" y="155" className="target-zone-label">A</text>
+        <text x="136" y="155" className="target-zone-label">C</text>
+        <text x="155" y="155" className="target-zone-label">D</text>
       </svg>
     );
   }
