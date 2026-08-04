@@ -213,21 +213,28 @@ function TargetGraphic({ type }) {
   }
 
   if (type === "ipsc") {
-    // Classic IPSC target with nested D/C/A zones. Proportioned to the
-    // official full-size metric target's roughly 450 x 750mm silhouette
-    // (narrower "shoulders" up top, wider through the middle, tapered
-    // base) rather than a symmetric octagon - not a certified scoring
-    // template, but closer to the real target's proportions.
+    // Traced directly from a reference image of the real IPSC target
+    // (outline + D/C/A zone boundaries extracted via contour detection),
+    // not hand-guessed - closely matches the actual zone shapes.
     return (
-      <svg viewBox="0 0 180 300" className="target-svg" preserveAspectRatio="xMidYMid meet">
-        <path d="M65 10 L115 10 L165 70 L165 230 L125 290 L55 290 L15 230 L15 70 Z" className="target-fill" />
-        <path d="M72 55 L108 55 L145 95 L145 205 L115 255 L65 255 L35 205 L35 95 Z" className="target-line" />
-        <path d="M78 80 L102 80 L128 115 L128 170 L90 205 L52 170 L52 115 Z" className="target-line" />
-        <text x="25" y="155" className="target-zone-label">D</text>
-        <text x="44" y="155" className="target-zone-label">C</text>
-        <text x="90" y="155" className="target-zone-label">A</text>
-        <text x="136" y="155" className="target-zone-label">C</text>
-        <text x="155" y="155" className="target-zone-label">D</text>
+      <svg viewBox="0 0 410 530" className="target-svg" preserveAspectRatio="xMidYMid meet">
+        <path
+          d="M156 52 L269 53 L377 192 L377 330 L267 469 L155 469 L45 331 L45 191 Z"
+          className="target-fill target-fill-lg"
+        />
+        <path
+          d="M265 60 L318 296 L246 379 L175 380 L104 297 L156 61 Z"
+          className="target-line target-line-lg"
+        />
+        <path
+          d="M193 74 L230 75 L265 191 L265 255 L229 308 L192 308 L156 254 L156 192 Z"
+          className="target-line target-line-lg"
+        />
+        <text x="85" y="205" className="target-zone-label target-zone-label-lg">D</text>
+        <text x="140" y="205" className="target-zone-label target-zone-label-lg">C</text>
+        <text x="210" y="205" className="target-zone-label target-zone-label-lg">A</text>
+        <text x="281" y="205" className="target-zone-label target-zone-label-lg">C</text>
+        <text x="337" y="205" className="target-zone-label target-zone-label-lg">D</text>
       </svg>
     );
   }
