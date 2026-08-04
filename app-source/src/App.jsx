@@ -239,18 +239,10 @@ function TargetGraphic({ type }) {
     return <img src="./targets/ipsc.svg" alt="IPSC Target" className="target-img" />;
   }
 
-  // USPSA - classic humanoid-style silhouette, visually distinct from the
-  // IPSC octagon/zone target above.
-  return (
-    <svg viewBox="0 0 200 320" className="target-svg" preserveAspectRatio="xMidYMid meet">
-      <path d="M60 300 L60 150 Q60 90 100 90 Q140 90 140 150 L140 300 Z" className="target-fill" />
-      <circle cx="100" cy="55" r="38" className="target-fill" />
-      <ellipse cx="100" cy="150" rx="28" ry="46" className="target-line" />
-      <g className="target-watermark">
-        <LogoWatermark x={91} y={257.1} width={18} />
-      </g>
-    </svg>
-  );
+  // USPSA - user-supplied vector artwork with the real D/C/A/B zone
+  // layout, same treatment as the IPSC target. The FORT mark is baked
+  // directly into the SVG file itself (see public/targets/uspsa-target.svg).
+  return <img src="./targets/uspsa-target.svg" alt="USPSA Target" className="target-img" />;
 }
 
 // Range Officer simulation: pick a target type, optionally turn on Voice
