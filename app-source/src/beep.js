@@ -6,6 +6,77 @@ export function createBeepPlayer() {
   let audioCtx = null;
   let beepBuffer = null;
   let beepArrayBuffer = null; // raw bytes, fetched once and reused across runs
+  const calloutCache = new Map(); // key -> AudioBuffer | null (null = failed to load)
+  const calloutLoading = new Map(); // key -> in-flight Promise<AudioBuffer|null>
+
+  // Shared limiter setup for both the beep and the recorded callout clips -
+  // keeps loud phone-speaker playback from clipping.
+  function makeLimiter(ctx) {
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.15;
+    limiter.connect(ctx.destination);
+    return limiter;
+  }
+
+  // Loads and decodes one recorded callout clip (public/audio/callouts/<key>.mp3),
+  // caching the decoded buffer so repeat plays (e.g. numbers/directions coming
+  // up again in the same Transitions run) are instant. Dedupes concurrent
+  // requests for the same key.
+  async function loadCallout(key) {
+    if (calloutCache.has(key)) return calloutCache.get(key);
+    if (calloutLoading.has(key)) return calloutLoading.get(key);
+    const ctx = audioCtx;
+    if (!ctx) return null;
+
+    const p = (async () => {
+      try {
+        const res = await fetch(new URL(`audio/callouts/${key}.mp3`, document.baseURI));
+        const arr = await res.arrayBuffer();
+        const buf = await ctx.decodeAudioData(arr);
+        calloutCache.set(key, buf);
+        return buf;
+      } catch {
+        calloutCache.set(key, null);
+        return null;
+      } finally {
+        calloutLoading.delete(key);
+      }
+    })();
+    calloutLoading.set(key, p);
+    return p;
+  }
+
+  // Warms the cache for a set of keys ahead of time (called at Start) so the
+  // first callout of a run doesn't have to wait on a fetch.
+  async function preloadCallouts(keys) {
+    await Promise.all(keys.map(loadCallout));
+  }
+
+  // Plays a recorded callout clip and resolves once it finishes - mirrors the
+  // old speechSynthesis-based speak() timing so calling code can keep the
+  // same "wait for it to finish, then schedule the next one" pattern. Loads
+  // on demand if it wasn't preloaded yet; resolves immediately (silently) if
+  // the clip is missing or the context isn't ready, so a drill never stalls.
+  async function playCallout(key, { gain = 1.6 } = {}) {
+    const ctx = audioCtx;
+    if (!ctx) return;
+    const buffer = await loadCallout(key);
+    if (!buffer) return;
+    return new Promise((resolve) => {
+      const src = ctx.createBufferSource();
+      const g = ctx.createGain();
+      src.buffer = buffer;
+      g.gain.value = gain;
+      src.connect(g);
+      g.connect(makeLimiter(ctx));
+      src.onended = () => resolve();
+      src.start();
+    });
+  }
 
   async function ensureAudioCtx() {
     let ctx = audioCtx;
@@ -48,13 +119,7 @@ export function createBeepPlayer() {
 
     // Brickwall-ish limiter so we can push gain > 1 for louder playback on
     // weak phone speakers without the output hard-clipping into distortion.
-    const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -6;
-    limiter.knee.value = 0;
-    limiter.ratio.value = 20;
-    limiter.attack.value = 0.001;
-    limiter.release.value = 0.15;
-    limiter.connect(ctx.destination);
+    const limiter = makeLimiter(ctx);
 
     if (beepBuffer) {
       const src = ctx.createBufferSource();
@@ -88,5 +153,5 @@ export function createBeepPlayer() {
     osc.stop(t0 + duration + 0.02);
   }
 
-  return { ensureAudioCtx, playBeep };
+  return { ensureAudioCtx, playBeep, preloadCallouts, playCallout };
 }

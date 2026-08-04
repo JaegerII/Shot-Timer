@@ -7,20 +7,46 @@ const DEFAULT_SETTINGS = {
   categories: { lr: true, abcd: false, numbers: false, colors: false, distance: false },
   interval: "1", // "0.5" | "1" | "2" | "random"
   count: "10", // "10" | "20" | "endless"
-  voiceGender: "female", // "female" | "male" - best effort, browser/device dependent
   prepDelay: "3", // "2" | "3" | "4" seconds - time to get into position before "Standby"
 };
 
-// Spoken callout pools per category. German, since these are descriptive
-// words (not fixed range-officer commands like "Standby"), matching the
-// rest of the app's language.
+// Spoken callout pools per category, using the user's own recorded audio
+// clips (public/audio/callouts/) instead of browser text-to-speech - much
+// better and more consistent voice quality than any Web Speech API voice.
+// ABCD uses the NATO-style words actually recorded (Alpha/Beta/Charlie/
+// Delta), not bare letters.
 const POOLS = {
   lr: ["Links", "Mitte", "Rechts"],
-  abcd: ["A", "B", "C", "D"],
+  abcd: ["Alpha", "Beta", "Charlie", "Delta"],
   numbers: ["1", "2", "3", "4", "5"],
   colors: ["Rot", "Grün", "Blau", "Gelb"],
   distance: ["Nah", "Fern"],
 };
+
+// Maps each displayed callout word to its recorded clip's filename (without
+// extension) under public/audio/callouts/.
+const CALLOUT_KEYS = {
+  Links: "links",
+  Mitte: "mitte",
+  Rechts: "rechts",
+  Alpha: "alpha",
+  Beta: "beta",
+  Charlie: "charlie",
+  Delta: "delta",
+  1: "1",
+  2: "2",
+  3: "3",
+  4: "4",
+  5: "5",
+  Rot: "rot",
+  Grün: "gruen",
+  Blau: "blau",
+  Gelb: "gelb",
+  Nah: "nah",
+  Fern: "fern",
+};
+
+const ALL_CALLOUT_KEYS = [...new Set(Object.values(CALLOUT_KEYS))].concat("standby");
 
 // Random delay between "Standby" and the beep - same "don't let them
 // anticipate the exact moment" idea as the Targets tab's arm delay, just a
@@ -35,52 +61,6 @@ function loadJSON(key, fallback) {
   } catch {
     return fallback;
   }
-}
-
-const speechSynthesisAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
-
-// Best-effort voice pick - the Web Speech API doesn't expose a reliable
-// gender field, so this just matches common name hints among the German
-// voices and otherwise leaves the browser's own default voice in place
-// (utter.voice stays unset). Deliberately NOT trying to be clever about
-// "better" voices here - preferring non-local/network voices actively
-// made things worse (picked oddball/foreign voices on some phones), so
-// that heuristic was removed again.
-function pickVoice(gender) {
-  if (!speechSynthesisAvailable) return null;
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return null;
-  const german = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith("de"));
-  if (!german.length) return null;
-
-  const genderHints =
-    gender === "male"
-      ? ["male", "markus", "yannick", "hans", "stefan"]
-      : ["female", "anna", "petra", "helena", "katja", "marlene"];
-
-  return german.find((v) => genderHints.some((h) => v.name.toLowerCase().includes(h))) || null;
-}
-
-function speak(text, gender) {
-  return new Promise((resolve) => {
-    if (!speechSynthesisAvailable) {
-      resolve();
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "de-DE";
-      utter.rate = 1.15;
-      const voice = pickVoice(gender);
-      if (voice) utter.voice = voice;
-      utter.onend = () => resolve();
-      utter.onerror = () => resolve();
-      window.speechSynthesis.speak(utter);
-    } catch {
-      resolve();
-    }
-  });
 }
 
 function intervalMs(interval) {
@@ -171,7 +151,7 @@ export function useTransitionsTimer() {
         setCurrent(pick);
         const nextCount = calledSoFar + 1;
         setCalledCount(nextCount);
-        await speak(pick, s.voiceGender);
+        await beepPlayerRef.current.playCallout(CALLOUT_KEYS[pick] || String(pick).toLowerCase());
         if (phaseRef.current === "calling") scheduleNext(nextCount);
       }, intervalMs(s.interval));
     },
@@ -202,30 +182,24 @@ export function useTransitionsTimer() {
 
   const beginStandby = useCallback(() => {
     setPhase("standby");
-    speak("Standby", settingsRef.current.voiceGender).then(() => {
+    beepPlayerRef.current.playCallout("standby").then(() => {
       if (phaseRef.current === "standby") beginArm();
     });
   }, [beginArm]);
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     clearTimer();
-    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
 
-    // Unlock audio playback and speech synthesis synchronously within this
-    // click's user-activation window - the actual beep/"Standby" calls
-    // fire later, from inside timeout/promise chains well outside the tap,
-    // and mobile browsers (iOS Safari especially) silently block audio
-    // APIs invoked that far removed from a gesture.
-    beepPlayerRef.current.ensureAudioCtx();
-    if (speechSynthesisAvailable) {
-      try {
-        const unlock = new SpeechSynthesisUtterance(" ");
-        unlock.volume = 0;
-        window.speechSynthesis.speak(unlock);
-      } catch {
-        // ignore - priming is best-effort
-      }
-    }
+    // Unlock audio playback synchronously within this click's user-
+    // activation window - the actual beep/callout clips fire later, from
+    // inside timeout/promise chains well outside the tap, and mobile
+    // browsers (iOS Safari especially) silently block audio APIs invoked
+    // that far removed from a gesture.
+    await beepPlayerRef.current.ensureAudioCtx();
+    // Warm the cache for every recorded clip so the first callout of the
+    // run doesn't wait on a fetch - not awaited, playCallout() will load
+    // on demand anyway if this hasn't finished by the time it's needed.
+    beepPlayerRef.current.preloadCallouts(ALL_CALLOUT_KEYS);
 
     lastValueRef.current = null;
     setCurrent(null);
@@ -250,7 +224,6 @@ export function useTransitionsTimer() {
 
   const stop = useCallback(() => {
     clearTimer();
-    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     setCountdown(null);
     setArmRemaining(null);
     setPhase((p) => (p === "idle" ? p : "done"));
@@ -258,7 +231,6 @@ export function useTransitionsTimer() {
 
   const reset = useCallback(() => {
     clearTimer();
-    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     setPhase("idle");
     setCurrent(null);
     setCalledCount(0);
@@ -266,13 +238,7 @@ export function useTransitionsTimer() {
     setArmRemaining(null);
   }, [clearTimer]);
 
-  useEffect(
-    () => () => {
-      clearTimer();
-      if (speechSynthesisAvailable) window.speechSynthesis.cancel();
-    },
-    [clearTimer]
-  );
+  useEffect(() => () => clearTimer(), [clearTimer]);
 
   return {
     settings,
@@ -282,7 +248,6 @@ export function useTransitionsTimer() {
     calledCount,
     countdown,
     armRemaining,
-    speechSupported: speechSynthesisAvailable,
     start,
     stop,
     reset,

@@ -25,30 +25,6 @@ function loadJSON(key, fallback) {
 
 const SpeechRecognitionCtor =
   typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
-const speechSynthesisAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
-
-// Speaks "Standby" out loud (simulating the range officer) and resolves once
-// the utterance finishes - or resolves immediately if speech synthesis
-// isn't available, so the run still proceeds silently instead of stalling.
-function announceStandby() {
-  return new Promise((resolve) => {
-    if (!speechSynthesisAvailable) {
-      resolve();
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel(); // drop anything queued/stuck from before
-      const utter = new SpeechSynthesisUtterance("Standby");
-      utter.lang = "en-US"; // "Standby" is the RO command - keep it in English regardless of UI language
-      utter.rate = 0.95;
-      utter.onend = () => resolve();
-      utter.onerror = () => resolve();
-      window.speechSynthesis.speak(utter);
-    } catch {
-      resolve();
-    }
-  });
-}
 
 // Range Officer simulation: Start -> (optional) Voice Start, where you say
 // "Shooter Ready", the app answers "Standby" out loud -> random delay ->
@@ -185,9 +161,9 @@ export function useTargetsTimer() {
     if (phaseRef.current !== "ready") return;
     stopRecognition();
     setPhase("standby");
-    announceStandby().then(() => {
+    beepPlayerRef.current.playCallout("standby").then(() => {
       // Only proceed if Stop/Reset didn't cancel the run while "Standby"
-      // was being spoken.
+      // was playing.
       if (phaseRef.current === "standby") beginRun();
     });
   }, [stopRecognition, beginRun]);
@@ -249,7 +225,6 @@ export function useTargetsTimer() {
   const reset = useCallback(() => {
     clearTimers();
     stopRecognition();
-    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     releaseWakeLock();
     setPhase("idle");
     setLiveElapsed(0);
@@ -260,7 +235,6 @@ export function useTargetsTimer() {
   const stop = useCallback(() => {
     clearTimers();
     stopRecognition();
-    if (speechSynthesisAvailable) window.speechSynthesis.cancel();
     releaseWakeLock();
     setPhase((p) => (p === "idle" || p === "done" ? p : "done"));
   }, [clearTimers, stopRecognition, releaseWakeLock]);
@@ -272,26 +246,15 @@ export function useTargetsTimer() {
     requestWakeLock();
     setLiveElapsed(0);
 
-    // Unlock audio playback and speech synthesis right here, synchronously
-    // within this click's user-activation window. With Voice Start on, the
-    // beep and the "Standby" line both actually fire much later - after
-    // speech recognition hears "Shooter Ready" and the TTS finishes - which
-    // is well outside the original gesture. Mobile browsers (iOS Safari in
-    // particular) silently block AudioContext/SpeechSynthesis calls made
-    // that far removed from a tap, which is why both were missing on
-    // phone. Priming them here (not awaited - only the synchronous part,
-    // the actual context creation/resume call, needs to happen inside the
-    // gesture) keeps them unlocked for the rest of the run.
+    // Unlock audio playback right here, synchronously within this click's
+    // user-activation window. With Voice Start on, the beep and "Standby"
+    // clip both actually fire much later - after speech recognition hears
+    // "Shooter Ready" - which is well outside the original gesture. Mobile
+    // browsers (iOS Safari in particular) silently block AudioContext calls
+    // made that far removed from a tap, which is why the beep was missing
+    // on phone before this was added.
     beepPlayerRef.current.ensureAudioCtx();
-    if (speechSynthesisAvailable) {
-      try {
-        const unlock = new SpeechSynthesisUtterance(" ");
-        unlock.volume = 0;
-        window.speechSynthesis.speak(unlock);
-      } catch {
-        // ignore - priming is best-effort
-      }
-    }
+    beepPlayerRef.current.preloadCallouts(["standby"]);
 
     if (settingsRef.current.voiceEnabled) {
       setPhase("ready");
@@ -305,7 +268,6 @@ export function useTargetsTimer() {
     () => () => {
       clearTimers();
       stopRecognition();
-      if (speechSynthesisAvailable) window.speechSynthesis.cancel();
       releaseWakeLock();
     },
     [clearTimers, stopRecognition, releaseWakeLock]

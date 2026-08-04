@@ -4,7 +4,7 @@ import { useShotTimer } from "./useShotTimer";
 import { useTargetsTimer } from "./useTargetsTimer";
 import { useTransitionsTimer } from "./useTransitionsTimer";
 
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "1.7.0";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -422,7 +422,7 @@ function TargetsPanel({ t }) {
 
 const TRANSITION_CATEGORIES = [
   { key: "lr", label: "Links / Mitte / Rechts" },
-  { key: "abcd", label: "Buchstaben A–D" },
+  { key: "abcd", label: "Alpha / Beta / Charlie / Delta" },
   { key: "numbers", label: "Zahlen 1–5" },
   { key: "colors", label: "Farben" },
   { key: "distance", label: "Nah / Fern" },
@@ -545,16 +545,6 @@ function TransitionsPanel({ t }) {
               </button>
             ))}
           </div>
-          <div className="toggle-row" style={{ marginTop: 12 }}>
-            <span>Stimme: {s.voiceGender === "male" ? "Männlich" : "Weiblich"}</span>
-            <Toggle
-              on={s.voiceGender === "male"}
-              onClick={() => t.setSettings({ voiceGender: s.voiceGender === "male" ? "female" : "male" })}
-            />
-          </div>
-          {!t.speechSupported && (
-            <div className="field-hint">Dein Browser unterstützt keine Sprachausgabe.</div>
-          )}
         </div>
 
         <button className="main-btn compact start" onClick={t.start} disabled={!hasCategory}>
