@@ -64,8 +64,6 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>FORT Timer verwendet das Mikrofon, um beim Dry-Fire-Training deinen Holster-Zug und den Abzugsklick zu erkennen und deine Split-Zeiten zu messen. Es wird keine Audioaufnahme gespeichert oder übertragen - die Auswertung geschieht ausschließlich lokal auf deinem Gerät.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

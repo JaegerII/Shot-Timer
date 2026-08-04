@@ -26,14 +26,7 @@ export default function App() {
     done: "Fertig",
   }[t.phase];
 
-  const lastShotRow = [...t.splitsView].reverse().find((r) => r.kind === "shot");
-
-  const bigTime =
-    t.phase === "listening"
-      ? fmt(t.liveElapsed)
-      : lastShotRow
-      ? fmt(lastShotRow.abs)
-      : "0.00";
+  const bigTime = t.phase === "idle" ? "0.00" : fmt(t.liveElapsed);
 
   return (
     <div className="app-shell">
@@ -45,8 +38,6 @@ export default function App() {
           <h1>FORT Timer</h1>
         </button>
       </div>
-
-      {t.micError && <div className="mic-warning">{t.micError}</div>}
 
       <div className="tab-content">
       {tab === "settings" ? (
@@ -61,9 +52,6 @@ export default function App() {
               )}
             </div>
             <div className="time">{bigTime}</div>
-            {t.shotCount > 0 && (
-              <div className="sub">{t.shotCount} Treffer erkannt</div>
-            )}
           </div>
 
           {running ? (
@@ -196,30 +184,6 @@ function TimerSettingsSection({ t }) {
   return (
     <>
       <div className="panel">
-        <h2>Erkennung</h2>
-        <div className="field">
-          <div className="field-label">
-            <span>Empfindlichkeit</span>
-            <span className="val">{s.sensitivity}</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={s.sensitivity}
-            onChange={(e) => t.setSettings({ sensitivity: Number(e.target.value) })}
-          />
-        </div>
-        <div className="toggle-row" style={{ marginTop: 18 }}>
-          <span>Erster Ton = Holster-Zug</span>
-          <Toggle on={s.drawDetection} onClick={() => t.setSettings({ drawDetection: !s.drawDetection })} />
-        </div>
-        <div className="field-hint">
-          Der erste erkannte Ton in jedem Lauf zählt dann nicht als Schuss.
-        </div>
-      </div>
-
-      <div className="panel">
         <h2>Random Delay</h2>
         <div className="field">
           <div className="field-label">
@@ -308,10 +272,6 @@ function AboutSection() {
             measurable. Whether you're training at home or preparing for your next competition,
             every repetition provides valuable feedback.
           </p>
-          <p>
-            Using your phone's microphone, the app detects your draw and trigger press, helping
-            you monitor consistency and identify improvement over time.
-          </p>
           <p className="about-closing">Train with purpose. Improve with every repetition.</p>
 
           <h2>The FORT Principles</h2>
@@ -321,10 +281,6 @@ function AboutSection() {
             <li>Respond decisively.</li>
             <li>Train relentlessly.</li>
           </ul>
-
-          <p className="about-note">
-            Tip: for reliable detection, keep your phone within about 50&nbsp;cm (20&nbsp;in) of you.
-          </p>
         </div>
       </div>
 
@@ -356,8 +312,8 @@ function PrivacySection() {
 
         <h2>Mikrofonzugriff</h2>
         <p>
-          Das Mikrofon wird nur benötigt, um Holster-Zug und Abzugsklick in Echtzeit lokal auf
-          deinem Gerät zu erkennen. Es wird dabei keine Tonaufnahme gespeichert oder übertragen.
+          Der Dry-Fire-Timer nutzt aktuell kein Mikrofon und fragt keine entsprechende
+          Berechtigung ab.
         </p>
 
         <h2>Kein Tracking</h2>

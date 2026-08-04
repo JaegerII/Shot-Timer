@@ -297,14 +297,6 @@ body {
   background: var(--accent);
 }
 
-.about-panel .about-note {
-  margin-top: 22px;
-  margin-bottom: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-  opacity: 0.75;
-}
-
 .display {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -512,12 +504,6 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .toggle {
   width: 44px;
   height: 26px;
@@ -590,16 +576,6 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 .stepper-btn:active { border-color: var(--accent); }
-
-.mic-warning {
-  background: #1e0e0c;
-  border: 1px solid #4a201a;
-  color: #f09682;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 13px;
-  margin-bottom: 16px;
-}
 
 .sec-btn:disabled {
   opacity: 0.4;

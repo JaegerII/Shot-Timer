@@ -81,46 +81,22 @@
       <div class="updated">Stand: August 2026</div>
 
       <p>
-        FORT Timer kann komplett ohne Konto genutzt werden - dann bleiben Einstellungen und
-        Trainingsverlauf ausschließlich lokal auf deinem Gerät (Local Storage) und werden nirgends
-        hin übertragen. Wenn du dich für ein Konto entscheidest, verarbeiten wir zusätzlich Daten
-        über unseren Backend-Anbieter Supabase (Authentifizierung, Datenbank, Dateispeicher),
-        damit dein Trainingsverlauf geräteübergreifend verfügbar ist.
+        FORT Timer läuft komplett lokal auf deinem Gerät. Es gibt kein Konto, keinen
+        Server-Login und keine Übertragung deiner Daten irgendwohin.
       </p>
 
       <div class="panel">
+        <h2>Einstellungen</h2>
+        <p>
+          Deine Einstellungen werden ausschließlich lokal auf diesem Gerät gespeichert (Local
+          Storage). Sie verlassen dein Gerät nie. Löschst du die App oder ihre Daten, sind sie
+          unwiderruflich weg - es gibt keine Cloud-Kopie.
+        </p>
+
         <h2>Mikrofonzugriff</h2>
         <p>
-          FORT Timer benötigt Zugriff auf das Mikrofon, um während eines Laufs den Holster-Zug
-          und den Klick des Abzugs akustisch zu erkennen und daraus deine Split-Zeiten zu
-          berechnen. Das Audiosignal wird ausschließlich in Echtzeit und lokal auf deinem Gerät
-          verarbeitet (über die Web-Audio-API deines Browsers bzw. Betriebssystems). Es wird
-          dabei keine Tonaufnahme gespeichert, aufgezeichnet oder irgendwohin übertragen - auch
-          nicht an unsere Server.
-        </p>
-
-        <h2>Konto &amp; Anmeldung</h2>
-        <p>
-          Bei Erstellung eines Kontos verarbeiten wir deine E-Mail-Adresse und ein verschlüsseltes
-          Passwort, oder bei Anmeldung über Google die von Google bereitgestellten Kontodaten
-          (E-Mail, Name). Für die Google-Anmeldung gilt zusätzlich die Datenschutzerklärung von
-          Google.
-        </p>
-
-        <h2>Profil &amp; Rangliste</h2>
-        <p>
-          Username, Geschlecht (optional) und Profilbild sind bewusst öffentlich innerhalb der App
-          sichtbar - sie erscheinen in der Rangliste für alle angemeldeten Nutzer. Dein
-          hinterlegter echter Name bleibt dagegen immer privat und wird niemandem angezeigt.
-          Equipment, das du als "aktuell" markierst, wird ebenfalls in der Rangliste angezeigt.
-        </p>
-
-        <h2>Trainingsdaten</h2>
-        <p>
-          Bei angemeldeten Nutzern werden Zug- und Schusszeiten (in Millisekunden, keine
-          Tonaufnahmen) sowie Zeitpunkt und Equipment-Tag eines Laufs gespeichert, um Dashboard,
-          Wochen-Trend und Rangliste zu ermöglichen. Ohne Konto bleiben diese Daten ausschließlich
-          lokal im Speicher deines Geräts. Du kannst einzelne Läufe jederzeit löschen.
+          Der Dry-Fire-Timer nutzt aktuell kein Mikrofon und fragt keine entsprechende
+          Berechtigung ab.
         </p>
 
         <h2>Kein Tracking</h2>
@@ -130,12 +106,6 @@
 
         <h2>Standortdaten</h2>
         <p>FORT Timer fragt keine Standortdaten ab und benötigt sie nicht.</p>
-
-        <h2>Deine Rechte</h2>
-        <p>
-          Du kannst deine Profildaten jederzeit in der App ändern und deinen kompletten Account
-          inklusive aller Daten unter Einstellungen → Account löschen unwiderruflich entfernen.
-        </p>
       </div>
 
       <h2>Verantwortlicher &amp; Kontakt</h2>
