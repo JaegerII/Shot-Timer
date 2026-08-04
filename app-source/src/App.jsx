@@ -428,102 +428,152 @@ const TRANSITION_COUNTS = [
   { key: "endless", label: "Endlos" },
 ];
 
+const TRANSITION_PREP_DELAYS = [
+  { key: "2", label: "2s" },
+  { key: "3", label: "3s" },
+  { key: "4", label: "4s" },
+];
+
 // Transitions drill: the app calls out a random direction/letter/number/
 // color/distance at a set pace, you react. Pure audio output - no camera,
-// no mic, nothing to detect, just the spoken prompt and a matching large
-// on-screen readout for anyone training without sound.
+// no mic, nothing to detect. Settings (categories/interval/count/prep
+// time/voice) only show while idle; once Start is pressed they're
+// replaced by a single big readout (countdown, "Standby", then the
+// callouts) - same "just the essentials, full size" idea as the Targets
+// tab's zoomed view, just always-on here instead of tap-to-zoom.
 function TransitionsPanel({ t }) {
   const s = t.settings;
-  const running = t.phase === "running";
+  const idle = t.phase === "idle";
   const hasCategory = Object.values(s.categories).some(Boolean);
   const countLabel = s.count === "endless" ? "∞" : s.count;
 
   const statusLabel = {
     idle: "Bereit",
-    running: "Läuft",
+    prep: "Bereit machen...",
+    standby: "Standby",
+    arming: "Achtung...",
+    calling: "Läuft",
     done: "Fertig",
   }[t.phase];
 
-  return (
-    <>
-      <div className="panel target-settings">
-        <h2>Kategorien</h2>
-        {TRANSITION_CATEGORIES.map((c) => (
-          <div className="toggle-row" key={c.key}>
-            <span>{c.label}</span>
+  const bigText =
+    t.phase === "prep"
+      ? String(t.countdown ?? "")
+      : t.phase === "standby"
+      ? "Standby"
+      : t.phase === "arming"
+      ? "•"
+      : t.current ?? "–";
+
+  if (idle) {
+    return (
+      <>
+        <div className="panel target-settings">
+          <h2>Kategorien</h2>
+          {TRANSITION_CATEGORIES.map((c) => (
+            <div className="toggle-row" key={c.key}>
+              <span>{c.label}</span>
+              <Toggle
+                on={s.categories[c.key]}
+                onClick={() =>
+                  t.setSettings({ categories: { ...s.categories, [c.key]: !s.categories[c.key] } })
+                }
+              />
+            </div>
+          ))}
+          {!hasCategory && (
+            <div className="field-hint">Wähle mindestens eine Kategorie aus, um zu starten.</div>
+          )}
+        </div>
+
+        <div className="panel target-settings">
+          <h2>Intervall</h2>
+          <div className="segmented">
+            {TRANSITION_INTERVALS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`segmented-btn ${s.interval === opt.key ? "active" : ""}`}
+                onClick={() => t.setSettings({ interval: opt.key })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel target-settings">
+          <h2>Anzahl</h2>
+          <div className="segmented">
+            {TRANSITION_COUNTS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`segmented-btn ${s.count === opt.key ? "active" : ""}`}
+                onClick={() => t.setSettings({ count: opt.key })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel target-settings">
+          <h2>Vorbereitungszeit</h2>
+          <div className="segmented">
+            {TRANSITION_PREP_DELAYS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`segmented-btn ${s.prepDelay === opt.key ? "active" : ""}`}
+                onClick={() => t.setSettings({ prepDelay: opt.key })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="toggle-row" style={{ marginTop: 12 }}>
+            <span>Stimme: {s.voiceGender === "male" ? "Männlich" : "Weiblich"}</span>
             <Toggle
-              on={s.categories[c.key]}
-              onClick={() =>
-                t.setSettings({ categories: { ...s.categories, [c.key]: !s.categories[c.key] } })
-              }
+              on={s.voiceGender === "male"}
+              onClick={() => t.setSettings({ voiceGender: s.voiceGender === "male" ? "female" : "male" })}
             />
           </div>
-        ))}
-        {!hasCategory && (
-          <div className="field-hint">Wähle mindestens eine Kategorie aus, um zu starten.</div>
-        )}
-      </div>
-
-      <div className="panel target-settings">
-        <h2>Intervall</h2>
-        <div className="segmented">
-          {TRANSITION_INTERVALS.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              className={`segmented-btn ${s.interval === opt.key ? "active" : ""}`}
-              onClick={() => t.setSettings({ interval: opt.key })}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {!t.speechSupported && (
+            <div className="field-hint">Dein Browser unterstützt keine Sprachausgabe.</div>
+          )}
         </div>
-      </div>
 
-      <div className="panel target-settings">
-        <h2>Anzahl</h2>
-        <div className="segmented">
-          {TRANSITION_COUNTS.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              className={`segmented-btn ${s.count === opt.key ? "active" : ""}`}
-              onClick={() => t.setSettings({ count: opt.key })}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="toggle-row" style={{ marginTop: 12 }}>
-          <span>Stimme: {s.voiceGender === "male" ? "Männlich" : "Weiblich"}</span>
-          <Toggle
-            on={s.voiceGender === "male"}
-            onClick={() => t.setSettings({ voiceGender: s.voiceGender === "male" ? "female" : "male" })}
-          />
-        </div>
-        {!t.speechSupported && (
-          <div className="field-hint">Dein Browser unterstützt keine Sprachausgabe.</div>
-        )}
-      </div>
+        <button className="main-btn compact start" onClick={t.start} disabled={!hasCategory}>
+          Start
+        </button>
+      </>
+    );
+  }
 
+  return (
+    <>
       <div className="mini-timer-bar">
         <span className="mini-timer-status">{statusLabel}</span>
+        {t.phase === "arming" && t.armRemaining != null && (
+          <span className="mini-timer-arm">{(t.armRemaining / 1000).toFixed(1)}s</span>
+        )}
         <span className="mini-timer-time">
           {t.calledCount}/{countLabel}
         </span>
       </div>
 
       <div className="transitions-frame">
-        <span className="transitions-call-text">{t.current ?? "–"}</span>
+        <span className="transitions-call-text">{bigText}</span>
       </div>
 
-      {running ? (
-        <button className="main-btn compact stop" onClick={t.stop}>
-          Stop
-        </button>
-      ) : (
+      {t.phase === "done" ? (
         <button className="main-btn compact start" onClick={t.start} disabled={!hasCategory}>
           Start
+        </button>
+      ) : (
+        <button className="main-btn compact stop" onClick={t.stop}>
+          Stop
         </button>
       )}
 

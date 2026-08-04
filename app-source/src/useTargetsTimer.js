@@ -272,6 +272,27 @@ export function useTargetsTimer() {
     requestWakeLock();
     setLiveElapsed(0);
 
+    // Unlock audio playback and speech synthesis right here, synchronously
+    // within this click's user-activation window. With Voice Start on, the
+    // beep and the "Standby" line both actually fire much later - after
+    // speech recognition hears "Shooter Ready" and the TTS finishes - which
+    // is well outside the original gesture. Mobile browsers (iOS Safari in
+    // particular) silently block AudioContext/SpeechSynthesis calls made
+    // that far removed from a tap, which is why both were missing on
+    // phone. Priming them here (not awaited - only the synchronous part,
+    // the actual context creation/resume call, needs to happen inside the
+    // gesture) keeps them unlocked for the rest of the run.
+    beepPlayerRef.current.ensureAudioCtx();
+    if (speechSynthesisAvailable) {
+      try {
+        const unlock = new SpeechSynthesisUtterance(" ");
+        unlock.volume = 0;
+        window.speechSynthesis.speak(unlock);
+      } catch {
+        // ignore - priming is best-effort
+      }
+    }
+
     if (settingsRef.current.voiceEnabled) {
       setPhase("ready");
       startListeningForReady();
