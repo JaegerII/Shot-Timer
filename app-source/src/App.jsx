@@ -213,30 +213,10 @@ function TargetGraphic({ type }) {
   }
 
   if (type === "ipsc") {
-    // Traced directly from a reference image of the real IPSC target
-    // (outline + D/C/A zone boundaries extracted via contour detection),
-    // not hand-guessed - closely matches the actual zone shapes.
-    return (
-      <svg viewBox="0 0 410 530" className="target-svg" preserveAspectRatio="xMidYMid meet">
-        <path
-          d="M156 52 L269 53 L377 192 L377 330 L267 469 L155 469 L45 331 L45 191 Z"
-          className="target-fill target-fill-lg"
-        />
-        <path
-          d="M265 60 L318 296 L246 379 L175 380 L104 297 L156 61 Z"
-          className="target-line target-line-lg"
-        />
-        <path
-          d="M193 74 L230 75 L265 191 L265 255 L229 308 L192 308 L156 254 L156 192 Z"
-          className="target-line target-line-lg"
-        />
-        <text x="85" y="205" className="target-zone-label target-zone-label-lg">D</text>
-        <text x="140" y="205" className="target-zone-label target-zone-label-lg">C</text>
-        <text x="210" y="205" className="target-zone-label target-zone-label-lg">A</text>
-        <text x="281" y="205" className="target-zone-label target-zone-label-lg">C</text>
-        <text x="337" y="205" className="target-zone-label target-zone-label-lg">D</text>
-      </svg>
-    );
+    // The user's own reference image, background removed, used directly -
+    // hand-tracing it as SVG kept coming out slightly uneven, the source
+    // image itself is the most accurate option.
+    return <img src="./targets/ipsc.png" alt="IPSC Target" className="target-img" />;
   }
 
   // USPSA - classic humanoid-style silhouette, visually distinct from the

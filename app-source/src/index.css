@@ -748,19 +748,12 @@ input[type="range"]::-webkit-slider-thumb {
   dominant-baseline: middle;
 }
 
-/* The IPSC target is traced at a larger internal coordinate scale (410x530,
-   matching the reference image) than the other target graphics, so its
-   stroke widths and label size need to scale up to match visually. */
-.target-fill-lg {
-  stroke-width: 5;
-}
-
-.target-line-lg {
-  stroke-width: 4;
-}
-
-.target-zone-label-lg {
-  font-size: 28px;
+.target-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
 .target-steel-plate {
