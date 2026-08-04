@@ -64,6 +64,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FORT Timer verwendet das Mikrofon nur, wenn du im Targets-Tab "Voice Start" aktivierst, um auf das gesprochene Kommando "Standby" zu warten, bevor der Random Delay startet. Der Dry-Fire-Timer selbst nutzt kein Mikrofon.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useShotTimer } from "./useShotTimer";
+import { useTargetsTimer } from "./useTargetsTimer";
 
 const APP_VERSION = "1.5.0";
 
@@ -18,16 +19,16 @@ function Toggle({ on, onClick }) {
 // its own beep/par-time-only flow is actually built.
 function ModeSwitch() {
   return (
-    <div className="panel mode-switch">
+    <div className="panel radio-list">
       <h2>Modus</h2>
-      <div className="mode-option active">
-        <span className="mode-dot" />
+      <div className="radio-option active">
+        <span className="radio-dot" />
         <span>Dry Fire</span>
       </div>
-      <div className="mode-option disabled" aria-disabled="true">
-        <span className="mode-dot" />
+      <div className="radio-option disabled" aria-disabled="true">
+        <span className="radio-dot" />
         <span>Live Fire</span>
-        <span className="mode-soon">Bald verfügbar</span>
+        <span className="radio-soon">Bald verfügbar</span>
       </div>
     </div>
   );
@@ -35,7 +36,8 @@ function ModeSwitch() {
 
 export default function App() {
   const t = useShotTimer();
-  const [tab, setTab] = useState("timer"); // timer | settings
+  const tt = useTargetsTimer();
+  const [tab, setTab] = useState("timer"); // timer | targets | settings
 
   const running = t.phase === "arming" || t.phase === "listening";
 
@@ -62,6 +64,8 @@ export default function App() {
       <div className="tab-content">
       {tab === "settings" ? (
         <SettingsPanel t={t} />
+      ) : tab === "targets" ? (
+        <TargetsPanel t={tt} />
       ) : (
         <>
           <ModeSwitch />
@@ -107,6 +111,7 @@ export default function App() {
 function BottomNav({ tab, setTab }) {
   const items = [
     { key: "timer", label: "Timer", icon: IconTimer },
+    { key: "targets", label: "Targets", icon: IconTargets },
     { key: "settings", label: "Einstellungen", icon: IconSettings },
   ];
 
@@ -135,6 +140,19 @@ function IconTimer() {
       <path d="M12 9v4l3 2" />
       <path d="M9 2h6" />
       <path d="M19 5l-1.5 1.5" />
+    </svg>
+  );
+}
+
+function IconTargets() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2v3" />
+      <path d="M12 19v3" />
+      <path d="M2 12h3" />
+      <path d="M19 12h3" />
     </svg>
   );
 }
@@ -173,6 +191,90 @@ function ParTimeQuickBar({ t }) {
         <Toggle on={s.parEnabled} onClick={() => t.setSettings({ parEnabled: !s.parEnabled })} />
       </div>
     </div>
+  );
+}
+
+const TARGET_TYPES = [
+  { key: "ipsc", label: "IPSC Target" },
+  { key: "uspsa", label: "USPSA Target" },
+  { key: "steel", label: "Steel Plate" },
+];
+
+// Range Officer simulation: pick a target type, optionally turn on Voice
+// Start (mic listens for you to say "Standby" before the random delay +
+// beep), otherwise Start behaves just like the Dry Fire timer's GO.
+function TargetsPanel({ t }) {
+  const s = t.settings;
+  const running = t.phase === "ready" || t.phase === "arming" || t.phase === "listening";
+
+  const statusLabel = {
+    idle: "Bereit",
+    ready: 'Warte auf "Standby"...',
+    arming: "Achtung...",
+    listening: "Läuft",
+    done: "Fertig",
+  }[t.phase];
+
+  const bigTime = t.phase === "idle" || t.phase === "ready" ? "0.00" : fmt(t.liveElapsed);
+
+  return (
+    <>
+      <div className="panel radio-list">
+        <h2>Target</h2>
+        {TARGET_TYPES.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            className={`radio-option as-button ${s.targetType === opt.key ? "active" : ""}`}
+            onClick={() => t.setSettings({ targetType: opt.key })}
+          >
+            <span className="radio-dot" />
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="panel">
+        <h2>Voice Start</h2>
+        <div className="toggle-row">
+          <span>Auf "Standby" warten</span>
+          <Toggle on={s.voiceEnabled} onClick={() => t.setSettings({ voiceEnabled: !s.voiceEnabled })} />
+        </div>
+        <div className="field-hint">
+          Aktiviert hört die App beim Start übers Mikrofon mit und startet den Zufalls-Delay
+          erst, wenn du "Standby" sagst - simuliert einen Range Officer. Die Mikrofonberechtigung
+          wird erst abgefragt, wenn du mit aktiviertem Voice Start auf Start tippst.
+        </div>
+      </div>
+
+      {t.micError && <div className="mic-warning">{t.micError}</div>}
+
+      <div className="display">
+        <div className="status-row">
+          <span className="status">{statusLabel}</span>
+          {t.phase === "arming" && t.armRemaining != null && (
+            <span className="arm-countdown">{(t.armRemaining / 1000).toFixed(1)}s</span>
+          )}
+        </div>
+        <div className="time">{bigTime}</div>
+      </div>
+
+      {running ? (
+        <button className="main-btn stop" onClick={t.stop}>
+          Stop
+        </button>
+      ) : (
+        <button className="main-btn start" onClick={t.start}>
+          Start
+        </button>
+      )}
+
+      <div className="row-btns">
+        <button className="sec-btn" onClick={t.reset}>
+          Reset
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -334,8 +436,14 @@ function PrivacySection() {
 
         <h2>Mikrofonzugriff</h2>
         <p>
-          Der Dry-Fire-Timer nutzt aktuell kein Mikrofon und fragt keine entsprechende
-          Berechtigung ab.
+          Der Dry-Fire-Timer nutzt kein Mikrofon. Aktivierst du im Targets-Tab "Voice Start",
+          hört die App beim Start kurz mit, um auf das Wort "Standby" zu warten - danach wird
+          das Mikrofon sofort wieder deaktiviert. Diese Erkennung läuft über die
+          Spracherkennungs-Funktion deines Browsers bzw. Betriebssystems; je nach Gerät kann
+          diese Verarbeitung dabei über einen Online-Dienst des jeweiligen Anbieters (z. B.
+          Google bei Chrome) erfolgen. Wir selbst speichern oder übertragen dabei nichts an
+          eigene Server. Die Berechtigung wird nur abgefragt, wenn du Voice Start aktivierst und
+          Start drückst.
         </p>
 
         <h2>Kein Tracking</h2>

@@ -426,11 +426,11 @@ body {
   margin: 0 0 16px;
 }
 
-.mode-switch h2 {
+.radio-list h2 {
   margin-bottom: 12px;
 }
 
-.mode-option {
+.radio-option {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -441,15 +441,23 @@ body {
   color: var(--text-dim);
 }
 
-.mode-option.active {
+.radio-option.as-button {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.radio-option.active {
   color: var(--text);
 }
 
-.mode-option.disabled {
+.radio-option.disabled {
   opacity: 0.5;
 }
 
-.mode-dot {
+.radio-dot {
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -458,11 +466,11 @@ body {
   position: relative;
 }
 
-.mode-option.active .mode-dot {
+.radio-option.active .radio-dot {
   border-color: var(--accent);
 }
 
-.mode-option.active .mode-dot::after {
+.radio-option.active .radio-dot::after {
   content: "";
   position: absolute;
   inset: 3px;
@@ -470,7 +478,7 @@ body {
   background: var(--accent);
 }
 
-.mode-soon {
+.radio-soon {
   margin-left: auto;
   font-size: 10px;
   letter-spacing: 0.05em;
@@ -481,6 +489,22 @@ body {
   border-radius: 20px;
   padding: 3px 9px;
   flex-shrink: 0;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mic-warning {
+  background: #1e0e0c;
+  border: 1px solid #4a201a;
+  color: #f09682;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
 .app-footer {

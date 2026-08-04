@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createBeepPlayer } from "./beep";
 
 const SETTINGS_KEY = "shot-timer-settings";
 
@@ -32,9 +33,8 @@ export function useShotTimer() {
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [armRemaining, setArmRemaining] = useState(null); // ms left until beep, or null
 
-  const audioCtxRef = useRef(null);
-  const beepBufferRef = useRef(null);
-  const beepArrayBufferRef = useRef(null); // raw bytes, fetched once and reused across runs
+  const beepPlayerRef = useRef(null);
+  if (!beepPlayerRef.current) beepPlayerRef.current = createBeepPlayer();
   const wakeLockRef = useRef(null);
   const beepAtRef = useRef(0);
   const armTimeoutRef = useRef(null);
@@ -89,89 +89,6 @@ export function useShotTimer() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
 
-  // Sets up (or resumes) a plain playback-only AudioContext for the beep -
-  // no getUserMedia, so this never triggers a microphone permission prompt.
-  const ensureAudioCtx = useCallback(async () => {
-    let ctx = audioCtxRef.current;
-    if (!ctx || ctx.state === "closed") {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      ctx = new AudioCtx();
-      audioCtxRef.current = ctx;
-    }
-    if (ctx.state === "suspended") {
-      await ctx.resume();
-    }
-
-    // Load the real, recorded PACT beep sample once and cache the raw bytes
-    // across runs. Falls back to a synthesized tone (in playBeep) if the
-    // fetch/decode fails for any reason.
-    if (!beepBufferRef.current) {
-      try {
-        if (!beepArrayBufferRef.current) {
-          const res = await fetch(new URL("audio/beep.mp3", document.baseURI));
-          beepArrayBufferRef.current = await res.arrayBuffer();
-        }
-        // decodeAudioData can detach/consume the buffer it's given, so decode
-        // a copy and keep the cached master intact for next time.
-        beepBufferRef.current = await ctx.decodeAudioData(beepArrayBufferRef.current.slice(0));
-      } catch {
-        beepBufferRef.current = null;
-      }
-    }
-    return true;
-  }, []);
-
-  // Plays the real, recorded PACT Club Timer beep (~2330Hz, ~0.3s - measured
-  // from an actual recording, pre-normalized ~11dB louder for phone speaker
-  // playback). rate < 1 pitches it down a bit for the par beep so the two
-  // are distinguishable while keeping the authentic timbre. Falls back to a
-  // synthesized tone if the sample couldn't be loaded.
-  const playBeep = useCallback((rate = 1, gain = 1.7) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-
-    // Brickwall-ish limiter so we can push gain > 1 for louder playback on
-    // weak phone speakers without the output hard-clipping into distortion.
-    const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -6;
-    limiter.knee.value = 0;
-    limiter.ratio.value = 20;
-    limiter.attack.value = 0.001;
-    limiter.release.value = 0.15;
-    limiter.connect(ctx.destination);
-
-    if (beepBufferRef.current) {
-      const src = ctx.createBufferSource();
-      const g = ctx.createGain();
-      src.buffer = beepBufferRef.current;
-      src.playbackRate.value = rate;
-      g.gain.value = gain;
-      src.connect(g);
-      g.connect(limiter);
-      src.start();
-      return;
-    }
-
-    // Fallback: synthesized approximation (~2330Hz sine, ~0.3s) in case the
-    // recorded sample failed to load.
-    const t0 = ctx.currentTime;
-    const duration = 0.3;
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 2330 * rate;
-
-    gainNode.gain.setValueAtTime(0, t0);
-    gainNode.gain.linearRampToValueAtTime(gain, t0 + 0.004);
-    gainNode.gain.setValueAtTime(gain, t0 + duration - 0.02);
-    gainNode.gain.linearRampToValueAtTime(0, t0 + duration);
-
-    osc.connect(gainNode);
-    gainNode.connect(limiter);
-    osc.start(t0);
-    osc.stop(t0 + duration + 0.02);
-  }, []);
-
   const clearTimers = useCallback(() => {
     if (armTimeoutRef.current) clearTimeout(armTimeoutRef.current);
     if (armIntervalRef.current) clearInterval(armIntervalRef.current);
@@ -203,7 +120,7 @@ export function useShotTimer() {
   // GO always works: if a run is still going (Stop wasn't pressed), it's
   // simply discarded and a fresh delay + beep starts immediately.
   const start = useCallback(async () => {
-    await ensureAudioCtx();
+    await beepPlayerRef.current.ensureAudioCtx();
 
     clearTimers();
     requestWakeLock();
@@ -224,7 +141,7 @@ export function useShotTimer() {
       armIntervalRef.current = null;
       setArmRemaining(null);
 
-      playBeep();
+      beepPlayerRef.current.playBeep();
       beepAtRef.current = performance.now();
       setPhase("listening");
 
@@ -234,11 +151,11 @@ export function useShotTimer() {
 
       if (s.parEnabled) {
         parTimeoutRef.current = setTimeout(() => {
-          playBeep(0.75); // lower pitch so the par beep is distinguishable from the start beep
+          beepPlayerRef.current.playBeep(0.75); // lower pitch so the par beep is distinguishable from the start beep
         }, s.parTime * 1000);
       }
     }, delay * 1000);
-  }, [ensureAudioCtx, playBeep, clearTimers, requestWakeLock]);
+  }, [clearTimers, requestWakeLock]);
 
   useEffect(() => () => {
     clearTimers();
