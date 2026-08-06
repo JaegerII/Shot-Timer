@@ -4,7 +4,7 @@ import { useShotTimer } from "./useShotTimer";
 import { useTargetsTimer } from "./useTargetsTimer";
 import { useTransitionsTimer } from "./useTransitionsTimer";
 
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 
 const TOPO_BG_URL = new URL("topo-bg.png", document.baseURI).toString();
 
@@ -447,6 +447,13 @@ const TRANSITION_PREP_DELAYS = [
   { key: "4", label: "4s" },
 ];
 
+const COLOR_CALLOUT_CLASS = {
+  Rot: "callout-rot",
+  Grün: "callout-gruen",
+  Blau: "callout-blau",
+  Gelb: "callout-gelb",
+};
+
 // Transitions drill: the app calls out a random direction/letter/number/
 // color/distance at a set pace, you react. Pure audio output - no camera,
 // no mic, nothing to detect. Settings (categories/interval/count/prep
@@ -477,6 +484,11 @@ function TransitionsPanel({ t }) {
       : t.phase === "arming"
       ? "•"
       : t.current ?? "–";
+
+  // Farben (Rot/Grün/Blau/Gelb) färben zusätzlich zum Wort auch das ganze
+  // Feld ein - auf einen Blick statt lesen müssen.
+  const colorClass =
+    t.phase === "calling" && COLOR_CALLOUT_CLASS[t.current] ? COLOR_CALLOUT_CLASS[t.current] : "";
 
   if (idle) {
     return (
@@ -566,7 +578,7 @@ function TransitionsPanel({ t }) {
         </span>
       </div>
 
-      <div className="transitions-frame">
+      <div className={`transitions-frame ${colorClass}`}>
         <span className="transitions-call-text">{bigText}</span>
       </div>
 

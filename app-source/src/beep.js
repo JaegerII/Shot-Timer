@@ -22,10 +22,14 @@ export function createBeepPlayer() {
     return limiter;
   }
 
-  // Loads and decodes one recorded callout clip (public/audio/callouts/<key>.mp3),
-  // caching the decoded buffer so repeat plays (e.g. numbers/directions coming
-  // up again in the same Transitions run) are instant. Dedupes concurrent
-  // requests for the same key.
+  // Loads and decodes one recorded callout clip
+  // (public/audio/callouts-v2/<key>.mp3), caching the decoded buffer so
+  // repeat plays (e.g. numbers/directions coming up again in the same
+  // Transitions run) are instant. Dedupes concurrent requests for the same
+  // key. ("-v2" because the first batch of clips had inconsistent trimming/
+  // loudness - see loadCallout history - re-processed with per-file silence
+  // detection + peak normalization instead of loudnorm, which behaves badly
+  // on sub-1s clips.)
   async function loadCallout(key) {
     if (calloutCache.has(key)) return calloutCache.get(key);
     if (calloutLoading.has(key)) return calloutLoading.get(key);
@@ -34,7 +38,7 @@ export function createBeepPlayer() {
 
     const p = (async () => {
       try {
-        const res = await fetch(new URL(`audio/callouts/${key}.mp3`, document.baseURI));
+        const res = await fetch(new URL(`audio/callouts-v2/${key}.mp3`, document.baseURI));
         const arr = await res.arrayBuffer();
         const buf = await ctx.decodeAudioData(arr);
         calloutCache.set(key, buf);
